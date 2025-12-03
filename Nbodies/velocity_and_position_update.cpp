@@ -36,3 +36,23 @@ void sympletic_euler(std::vector<Body> &bodies, double dt){
     }
 }
 
+// velocity verlet integrator is even more accurate
+// it updates velocity in half steps and then use that half step v to compute position update
+//recomputes acceleration using updated positions
+// this way it takes into account the change in acceleration due to position change
+void velocity_verlet(std::vector<Body> &bodies, double dt){
+    compute_acceleration(bodies);
+    size_t n = bodies.size();
+    for (int i = 0; i < n; ++i) {
+        for (int d = 0; d < DIM; ++d) {
+            bodies[i].v[d] += bodies[i].a[d] * 0.5 * dt; //we update velocity only by half step
+            bodies[i].s[d] += bodies[i].v[d] * dt; //then we update position using this half step velocity
+        }
+    }
+    compute_acceleration(bodies);       //recompute acceleration with new positions
+    for (int i = 0; i < n; ++i) {
+        for (int d = 0; d < DIM; ++d) {
+            bodies[i].v[d] += bodies[i].a[d] * 0.5 * dt;    //complete velocity update with the new acceleration
+        }
+    }
+}
