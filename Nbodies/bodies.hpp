@@ -1,4 +1,4 @@
-//as mentioned in the paper better to use to adjust it to different dimensions without code changes
+#pragma once
 #define DIM 2
 typedef double vect_t[DIM];
 struct Body
