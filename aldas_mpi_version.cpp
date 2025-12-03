@@ -117,7 +117,8 @@ inline void readFromFile(
     int &n, int &steps, double &dt,
     std::vector<double> &m, 
     std::vector<Vec> &p, 
-    std::vector<Vec> &v
+    std::vector<Vec> &v,
+    bool readVelocities = true
 ) {
     std::ifstream fin(fileName);
 
@@ -134,7 +135,9 @@ inline void readFromFile(
     for (int i = 0; i < n; i++) {
         fin >> m[i];
         for (int j = 0; j < DIM; j++) fin >> p[i][j];
-        for (int j = 0; j < DIM; j++) fin >> v[i][j];
+        if (readVelocities) {
+            for (int j = 0; j < DIM; j++) fin >> v[i][j];
+        }
     }
 
     fin.close();
@@ -250,11 +253,53 @@ inline void allMPIFinalize() {
     MPI_Finalize();
 }
 
+inline void compareOutputs() {
+
+    std::string serial_pref = "test1";
+    std::string mpi_pref = "test1-MPI";
+    int steps = 10;
+    double e = 1e-10;
+
+    for (int step = 0; step < steps; step++) {
+        int n_serial, n_mpi;
+        int steps_serial, steps_mpi;
+        double dt_serial, dt_mpi;
+
+        std::vector<double> masses_serial, masses_mpi;
+        std::vector<Vec> positions_serial, positions_mpi;
+
+        std::string filename_suf = + "." + std::to_string(step) + ".out";
+        std::string filename_serial = serial_pref + filename_suf;
+        std::string filename_mpi = mpi_pref + filename_suf;
+
+        readFromFile(filename_serial, n_serial, steps_serial, dt_serial, 
+                     masses_serial, positions_serial, positions_serial, false);
+        readFromFile(filename_mpi, n_mpi, steps_mpi, dt_mpi, 
+                     masses_mpi, positions_mpi, positions_mpi, false);
+
+        assert(steps == steps_mpi && steps_mpi == steps_serial);
+        assert(n_mpi == n_serial);
+        assert(fabs(dt_mpi - dt_serial) < e);
+        
+        for (int i = 0; i < n_mpi; i++) {
+            assert(fabs(masses_mpi[i]- masses_serial[i]) < e);
+            for (int j = 0; j < DIM; j++) {
+                assert(fabs(positions_mpi[i][j] - positions_serial[i][j]) < e);
+            }
+        }
+    }
+
+    std::cout << "CHECK FINISHED, EVERYTHING IS FINE" << std::endl;
+
+}
+
 int main(int argc, char** argv) {
 
     // runSerial();
     // return 0;
 
+    // compareOutputs();
+    // return 0;
 
     /*
     TODO
