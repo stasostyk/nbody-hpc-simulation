@@ -72,6 +72,11 @@ void Particle::init()
 
 void Particle::draw(Shader& shader)
 {
+    trace.push_back(position);
+    if (trace.size() > 300) {
+        trace.erase(trace.begin());
+    }
+
     glm::mat4 model = glm::mat4(1.0f);
     model = glm::translate(model, position);
     model = glm::scale(model, glm::vec3(radius));
@@ -82,4 +87,42 @@ void Particle::draw(Shader& shader)
     glBindVertexArray(VAO);
     glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, 0);
     glBindVertexArray(0);
+}
+
+
+void Particle::drawTrace(Shader& shader)
+{
+    if (trace.size() < 2)
+        return;
+
+    glm::mat4 model = glm::mat4(1.0f);
+    shader.setMat4("model", model);
+
+    shader.setVec3("color", glm::vec3(1.0f, 1.0f, 1.0f));
+
+    std::vector<float> verts;
+    verts.reserve(trace.size() * 3);
+
+    for (auto& p : trace) {
+        verts.push_back(p.x);
+        verts.push_back(p.y);
+        verts.push_back(p.z);
+    }
+
+    GLuint traceVAO, traceVBO;
+    glGenVertexArrays(1, &traceVAO);
+    glGenBuffers(1, &traceVBO);
+
+    glBindVertexArray(traceVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, traceVBO);
+    glBufferData(GL_ARRAY_BUFFER, verts.size() * sizeof(float),
+                 verts.data(), GL_DYNAMIC_DRAW);
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    glDrawArrays(GL_LINE_STRIP, 0, trace.size());
+
+    glDeleteBuffers(1, &traceVBO);
+    glDeleteVertexArrays(1, &traceVAO);
 }

@@ -68,7 +68,8 @@ int main() {
         shader.setMat4("projection", projection);
 
         for (Particle& p : particles) {
-            p.position = p.position + time*glm::vec3(0.1f,-0.1f,0.0f);
+            p.position = p.position + time*glm::vec3(0.0f,0.0f,0.0001f);
+            p.drawTrace(shader);
             p.draw(shader);
         }
 
