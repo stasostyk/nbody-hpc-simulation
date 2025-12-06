@@ -1,6 +1,6 @@
 #pragma once
 #define DIM 2
-typedef double vect_t[DIM];
+using vect_t = std::array<double, DIM>;
 struct Body
 {
     double mass;
