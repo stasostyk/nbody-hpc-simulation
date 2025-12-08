@@ -1,13 +1,3 @@
-/*
-
-compilation:
-mpic++ -O3 -std=c++11 -o nbody_mpi_reduced_packed nbody_mpi_reduced_packed.cpp
-
-running:
-mpirun -n 4 ./nbody_mpi_reduced_packed 400 100 0.01 0
-
-*/
-
 #include <mpi.h>
 #include <assert.h>
 #include <array>
