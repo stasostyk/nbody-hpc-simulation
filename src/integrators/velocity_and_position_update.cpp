@@ -1,7 +1,6 @@
 #include "integrator.hpp"
-#include "forces_serial.hpp"
-#include <vector>
-#include "bodies.hpp"
+#include "../forces_serial.hpp"
+
 // basic euler integrator it's the simplest but it can drift from accuracy easily
 //and overshhot or undershhot aproximations
 //it works by updating the position using OLD velocity (wgy it's not accurate)

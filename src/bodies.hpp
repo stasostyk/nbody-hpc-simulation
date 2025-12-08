@@ -1,4 +1,7 @@
 #pragma once
+
+#include <array>
+
 #define DIM 2
 using vect_t = std::array<double, DIM>;
 struct Body
