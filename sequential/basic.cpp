@@ -16,10 +16,6 @@ struct Particle {
     vect_t vel;
 };
 
-// ===============================================================
-//              BASIC FORCE COMPUTATION (O(N^2))
-//      Ogni coppia (q,k) viene considerata DUE volte
-// ===============================================================
 inline void compute_forces_basic(const std::vector<Particle>& p,
                                  std::vector<vect_t>& forces)
 {
@@ -57,9 +53,6 @@ inline void compute_forces_basic(const std::vector<Particle>& p,
     }
 }
 
-// ===============================================================
-//                 POSITION + VELOCITY UPDATE (Euler)
-// ===============================================================
 inline void update_particles(std::vector<Particle>& p,
                              const std::vector<vect_t>& forces,
                              double dt)
@@ -105,9 +98,6 @@ double total_energy(const std::vector<Particle>& p) {
 }
 
 
-// ===============================================================
-//                              MAIN
-// ===============================================================
 int main()
 {
     int n, n_steps;
@@ -154,7 +144,7 @@ int main()
         compute_forces_basic(particles, forces);
         auto t1 = std::chrono::steady_clock::now();
         double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
-    // --- TIMER END ---
+        // --- TIMER END ---
 
 
 

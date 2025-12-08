@@ -2,10 +2,10 @@
 #include <vector>
 #include <cmath>
 #include <random>
-#include <cstring>   // per strcmp
+#include <cstring>  
 
 constexpr int DIM = 2;
-constexpr double G = 1.0s; //6.673e-11
+constexpr double G = 1.0; //6.673e-11
 
 using vect_t = double[DIM];
 
@@ -19,7 +19,7 @@ void compute_forces_reduced(const std::vector<Particle>& p,
                             std::vector<vect_t>& forces)
 {
     int n = p.size();
-    const double eps = 1e-6; // softening
+    const double eps = 1e-6;
 
     // azzera forze
     for (int q = 0; q < n; ++q) {
@@ -27,11 +27,9 @@ void compute_forces_reduced(const std::vector<Particle>& p,
         forces[q][1] = 0.0;
     }
 
-    // ciclo "reduced": q < k
     for (int q = 0; q < n; ++q) {
         for (int k = q + 1; k < n; ++k) {
 
-            // vettore da q a k
             double dx = p[k].pos[0] - p[q].pos[0];
             double dy = p[k].pos[1] - p[q].pos[1];
 
@@ -39,14 +37,11 @@ void compute_forces_reduced(const std::vector<Particle>& p,
             double dist  = std::sqrt(dist2);
             double dist3 = dist2 * dist;
 
-            // modulo della forza gravitazionale
             double coeff = G * p[q].mass * p[k].mass / dist3;
 
-            // forza su q dovuta a k
             double fx = coeff * dx;
             double fy = coeff * dy;
 
-            // F_qk = +fx, F_kq = -fx  (Newton III)
             forces[q][0] += fx;
             forces[q][1] += fy;
 
@@ -163,12 +158,9 @@ void update_particles(std::vector<Particle>& p,
 
 int main(int argc, char* argv[]) {
 
-    // =============================================================
-    //  TEST 4: Random gas test (many particles)
-    //  Usage: ./reduced --test4 [N]
-    // =============================================================
+    //      STRESS TEST 4 (many particles)
 
-    if (argc >= 2 && strcmp(argv[1], "--test4") == 0) {
+    /*if (argc >= 2 && strcmp(argv[1], "--test4") == 0) {
 
         // default N = 200
         int N = 200;
@@ -200,11 +192,7 @@ int main(int argc, char* argv[]) {
         }
 
         return 0;  
-    }
-
-    // =============================================================
-    //    PARTE NORMALE DEL PROGRAMMA (input standard)
-    // =============================================================
+    }*/
 
     int n, n_steps;
     double dt;
