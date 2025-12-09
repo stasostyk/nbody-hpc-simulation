@@ -4,7 +4,7 @@ project(nbody LANGUAGES CXX C)
 option(BUILD_SIMULATION "Build the simulation" ON)
 option(BUILD_VISUALISATION "Build the simulation visualisation" OFF)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -27,7 +27,7 @@ if(BUILD_SIMULATION)
 
     add_executable(nbody_serial src/basic.cpp)
     add_executable(nbody_reduced src/reduced.cpp)
-    add_executable(nbody_mpi src/nbody-mpi.cpp)
+    add_executable(nbody_mpi src/nbody-mpi.cpp src/utils.cpp)
 
 endif(BUILD_SIMULATION)
 
@@ -50,7 +50,6 @@ if(BUILD_VISUALISATION)
         glfw
         glm::glm
         OpenGL::GL
-        ${CMAKE_DL_LIBS}
     )
 
     add_custom_target(copy-shaders ALL 
