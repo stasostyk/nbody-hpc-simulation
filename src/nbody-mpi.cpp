@@ -4,7 +4,10 @@
 #include <cmath>
 #include <iostream>
 
+#include "forces/gravity.hpp"
 #include "utils.hpp"
+
+constexpr int DIM = 2;
 
 static MPI_Datatype MPI_VEC;
 
@@ -46,30 +49,6 @@ inline static void freeMPIType() {
 //     return force;
 // }
 
-
-// gets force acting on particle p1
-inline Vec force_on_p1(
-    const Vec &pos1, 
-    const Vec &pos2,
-    double m1, double m2
-) {
-    Vec dist;
-    double distSquared = 1e-12; // softening to avoid division by zero
-    for (int i = 0; i < DIM; i++) {
-        dist[i] = pos1[i] - pos2[i];
-        distSquared += dist[i] * dist[i];
-    }
-
-    double dist3 = distSquared * std::sqrt(distSquared);
-    double coeff = -G * m1 * m2 / dist3;
-
-    Vec force;
-    for (int i = 0; i < DIM; i++) 
-        force[i] = dist[i] * coeff;
-    
-    return force;
-}
-
 // utility: block counts/displacements for an array of N elements across comm_sz
 void make_counts_displs(int N, int comm_sz, std::vector<int> &counts, std::vector<int> &displs) {
     counts.resize(comm_sz);
@@ -84,11 +63,10 @@ void make_counts_displs(int N, int comm_sz, std::vector<int> &counts, std::vecto
     }
 }
 
-inline void runSerial() {
+inline void runSerial(const forces::force<DIM>& force) {
 
     // BELOW CODE: for generating random test1.in.out
-    // utils::generateRandomToFile("test1.in.out");
-    // // return 0;
+    // utils::generateRandomToFile<DIM>("test1.in.out");
     // exit(0);
 
     int n;
@@ -96,9 +74,9 @@ inline void runSerial() {
     double dt;
 
     std::vector<double> masses;
-    std::vector<Vec> positions;
-    std::vector<Vec> velocities;
-    std::vector<Vec> forces;
+    std::vector<Vec<DIM>> positions;
+    std::vector<Vec<DIM>> velocities;
+    std::vector<Vec<DIM>> forces;
 
     utils::readFromFile("test1.in.out", n, steps, dt, masses, positions, velocities);
 
@@ -118,10 +96,7 @@ inline void runSerial() {
         for (int i = 0; i < n; i++) {
             for (int k = 0; k < n; k++) {
                 if (i == k) continue;
-                Vec force = force_on_p1(positions[i], positions[k], masses[i], masses[k]);
-                for (int j = 0; j < DIM; j++) {
-                    forces[i][j] += force[j];
-                }
+                forces[i] += force(positions[i], masses[i], positions[k], masses[k]);
             }
         }
 
@@ -166,7 +141,7 @@ inline void compareOutputs() {
         double dt_serial, dt_mpi;
 
         std::vector<double> masses_serial, masses_mpi;
-        std::vector<Vec> positions_serial, positions_mpi;
+        std::vector<Vec<DIM>> positions_serial, positions_mpi;
 
         std::string filename_suf = + "." + std::to_string(step) + ".out";
         std::string filename_serial = serial_pref + filename_suf;
@@ -195,7 +170,7 @@ inline void compareOutputs() {
 
 int main(int argc, char** argv) {
 
-    // runSerial();
+    // runSerial(forces::gravity<DIM>{});
     // return 0;
 
     // compareOutputs();
@@ -207,6 +182,9 @@ int main(int argc, char** argv) {
     - later: instead of basic version, do the reduced version
     */
 
+    forces::gravity<DIM> gravity{};
+    const forces::force<DIM> &force = gravity;
+
     int mpiSize, mpiRank;
     allMPIInit(&argc, &argv, mpiSize, mpiRank);
     
@@ -215,10 +193,10 @@ int main(int argc, char** argv) {
     double dt;
 
     std::vector<double> masses;
-    std::vector<Vec> positions;
-    std::vector<Vec> allVelocities; // only filled by mpiRank=0
-    std::vector<Vec> localVelocities;
-    std::vector<Vec> localForces;
+    std::vector<Vec<DIM>> positions;
+    std::vector<Vec<DIM>> allVelocities; // only filled by mpiRank=0
+    std::vector<Vec<DIM>> localVelocities;
+    std::vector<Vec<DIM>> localForces;
 
     if (mpiRank == 0) {
         // Root process reads input, and will broadcast the data.
@@ -271,11 +249,7 @@ int main(int argc, char** argv) {
             int q = locOffset + i;
             for (int k = 0; k < n; k++) {
                 if (q == k) continue;
-
-                Vec force = force_on_p1(positions[q], positions[k], masses[q], masses[k]);
-                for (int j = 0; j < DIM; j++) {
-                    localForces[i][j] += force[j];
-                }
+                localForces[i] += force(positions[i], masses[i], positions[k], masses[k]);
             }
         }
 

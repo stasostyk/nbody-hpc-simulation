@@ -1,25 +1,22 @@
 #include <iostream>
 #include <vector>
 #include <cmath>
-#include <random>
 #include <cstring>  
 
 constexpr int DIM = 2;
-constexpr double G = 1.0; //6.673e-11
-
-using vect_t = double[DIM];
+ 
+#include "forces/gravity.hpp"
 
 struct Particle {
     double mass;
-    vect_t pos;
-    vect_t vel;
+    Vec<DIM> pos;
+    Vec<DIM> vel;
 };
 
 void compute_forces_reduced(const std::vector<Particle>& p,
-                            std::vector<vect_t>& forces)
+                            std::vector<Vec<DIM>>& forces, const forces::force<DIM>& force)
 {
     int n = p.size();
-    const double eps = 1e-6;
 
     // azzera forze
     for (int q = 0; q < n; ++q) {
@@ -29,24 +26,9 @@ void compute_forces_reduced(const std::vector<Particle>& p,
 
     for (int q = 0; q < n; ++q) {
         for (int k = q + 1; k < n; ++k) {
-
-            double dx = p[k].pos[0] - p[q].pos[0];
-            double dy = p[k].pos[1] - p[q].pos[1];
-
-            double dist2 = dx*dx + dy*dy + eps*eps;
-            double dist  = std::sqrt(dist2);
-            double dist3 = dist2 * dist;
-
-            double coeff = G * p[q].mass * p[k].mass / dist3;
-
-            double fx = coeff * dx;
-            double fy = coeff * dy;
-
-            forces[q][0] += fx;
-            forces[q][1] += fy;
-
-            forces[k][0] -= fx;
-            forces[k][1] -= fy;
+            auto f = force(p[q].pos, p[q].mass, p[k].pos, p[k].mass);
+            forces[q] += f;
+            forces[k] -= f;
         }
     }
 }
@@ -132,7 +114,7 @@ void compute_forces_reduced(const std::vector<Particle>& p,
 
 
 void update_particles(std::vector<Particle>& p,
-                      const std::vector<vect_t>& forces,
+                      const std::vector<Vec<DIM>>& forces,
                       double dt)
 {
     int n = p.size();
@@ -194,12 +176,12 @@ int main(int argc, char* argv[]) {
         return 0;  
     }*/
 
-    int n, n_steps;
+    int dim, n, n_steps;
     double dt;
-    std::cin >> n >> n_steps >> dt;
+    std::cin >> dim >> n >> n_steps >> dt;
 
     std::vector<Particle> particles(n);
-    std::vector<vect_t> forces(n);
+    std::vector<Vec<DIM>> forces(n);
 
     for (int q = 0; q < n; ++q) {
         std::cin >> particles[q].mass
@@ -208,7 +190,7 @@ int main(int argc, char* argv[]) {
     }
 
     for (int step = 0; step < n_steps; ++step) {
-        compute_forces_reduced(particles, forces);
+        compute_forces_reduced(particles, forces, forces::gravity<DIM>{});
         update_particles(particles, forces, dt);
     }
 
