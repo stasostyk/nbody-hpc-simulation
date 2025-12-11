@@ -16,15 +16,80 @@ mpirun -n 4 ./nbody_mpi_reduced_packed 400 100 0.01 0
 #include <random>
 #include <fstream>
 #include <iostream>
+#include <algorithm>
 
 const static int DIM = 2; // dimensions of the problem (2D or 3D)
 const double G = 6.673e-11; // gravitational constant
 
-using Vec = std::array<double, DIM>; // vector in our DIM-dimensional space
+// using Vec = std::array<double, DIM>; // vector in our DIM-dimensional space
+
+struct Vec : std::array<double, DIM> {
+    using std::array<double, DIM>::array;  // Inherit constructors
+    
+    // Assignment from scalar
+    Vec& operator=(double scalar) {
+        std::fill(this->begin(), this->end(), scalar);
+        return *this;
+    }
+
+    // Addition (member function)
+    Vec operator+(const Vec& other) const {
+        Vec result;
+        for (size_t i = 0; i < DIM; ++i) {
+            result[i] = (*this)[i] + other[i];
+        }
+        return result;
+    }
+    
+    // Compound addition
+    Vec& operator+=(const Vec& other) {
+        for (size_t i = 0; i < DIM; ++i) {
+            (*this)[i] += other[i];
+        }
+        return *this;
+    }
+
+    // Subtraction (member function)
+    Vec operator-(const Vec& other) const {
+        Vec result;
+        for (size_t i = 0; i < DIM; ++i) {
+            result[i] = (*this)[i] - other[i];
+        }
+        return result;
+    }
+    
+    // Compound subtraction
+    Vec& operator-=(const Vec& other) {
+        for (size_t i = 0; i < DIM; ++i) {
+            (*this)[i] -= other[i];
+        }
+        return *this;
+    }
+
+    // Compound scalar multiplication
+    Vec& operator*=(double scalar) {
+        for (size_t i = 0; i < DIM; ++i) {
+            (*this)[i] *= scalar;
+        }
+        return *this;
+    }
+
+    // Scalar multiplication (member function)
+    Vec operator*(double scalar) const {
+        Vec result = *this;
+        result *= scalar;
+        return result;
+    }
+};
+
+// Non-member function for scalar * Vec
+Vec operator*(double scalar, const Vec& v) {
+    return v * scalar;  // Reuse the member function
+}
 
 static MPI_Datatype MPI_VEC;
 
-inline static void initMPIType() {
+inline static void initMPIType() {  
     MPI_Type_contiguous(DIM, MPI_DOUBLE, &MPI_VEC);
     MPI_Type_commit(&MPI_VEC);
 }
@@ -477,10 +542,8 @@ void runMPIReduced(int argc, char** argv) {
             int owner = i % mpiSize;
             int lidx = i / mpiSize;
             if (owner == 0) {
-                for (int j = 0; j < DIM; j++) {
-                    localPositions[lidx][j] = allPositions[i][j];
-                    localVelocities[lidx][j] = allVelocities[i][j];
-                }
+                localPositions[lidx] = allPositions[i];
+                localVelocities[lidx] = allVelocities[i];
             } else {
                 /* send mass and pos/vel to owner */
                 MPI_Send(&allPositions[i], 1, MPI_VEC, owner, 1, MPI_COMM_WORLD);
@@ -509,12 +572,9 @@ void runMPIReduced(int argc, char** argv) {
     for (int step = 0; step < steps; step++) {
         // make forces equal to zero and prepare tmpData
         for (int i = 0; i < locN; i++) {
-            for (int j = 0; j < DIM; j++) {
-                localForces[i][j] = 0.;
-
-                tmpPos[i][j] = localPositions[i][j];
-                tmpForces[i][j] = 0.;
-            }
+            localForces[i] = 0.;
+            tmpPos[i] = localPositions[i];
+            tmpForces[i] = 0.;
         }
 
         // first, compute forces due to interactions among local particles
@@ -525,10 +585,8 @@ void runMPIReduced(int argc, char** argv) {
                 Vec force = force_on_p1(localPositions[locI], localPositions[locJ],
                                         masses[glbI], masses[glbJ]);
                 
-                for (int d = 0; d < DIM; d++) {
-                    localForces[locI][d] += force[d];
-                    tmpForces[locJ][d] -= force[d];
-                }
+                localForces[locI] += force;
+                tmpForces[locJ] -= force;
             }
         }
 
@@ -560,10 +618,8 @@ void runMPIReduced(int argc, char** argv) {
                         masses[glbI], masses[glbJ]
                     );
 
-                    for (int d = 0; d < DIM; d++) {
-                        localForces[locI][d] += force[d];
-                        tmpForces[locJ][d] -= force[d];
-                    }
+                    localForces[locI] += force;
+                    tmpForces[locJ] -= force;
 
                     glbJ += mpiSize;
                     if (glbJ >= n) break;
@@ -581,45 +637,15 @@ void runMPIReduced(int argc, char** argv) {
 
         // add the tmpForces that were just received
         for (int i = 0; i < locN; i++) {
-            for (int d = 0; d < DIM; d++) {
-                localForces[i][d] += tmpForces[i][d];
-            }
+            localForces[i] += tmpForces[i];
         }
 
         // update velocities and positions (Euler)
         for (int locI = 0, glbI = mpiRank; locI < locN; locI++, glbI += mpiSize) {
             double invM = 1. / masses[glbI];
-            for (int d = 0; d < DIM; d++) {
-                // TODO first update velocities, and then positions, or vice versa?
-                localPositions[locI][d] += dt * localVelocities[locI][d];
-                localVelocities[locI][d] += dt * invM * localForces[locI][d];
-            }
+            localPositions[locI] += dt * localVelocities[locI];
+            localVelocities[locI] += dt * invM * localForces[locI];
         }
-
-
-        // apply forces, i.e. calc new positions and velocities
-        // for (int i = 0; i < locN; i++) {
-        //     int q = locOffset + i;
-        //     for (int j = 0; j < DIM; j++) {
-        //         positions[q][j] += dt * localVelocities[i][j];
-        //         localVelocities[i][j] += dt / masses[i] * localForces[i][j];
-        //     }
-        // }
-    
-        // // All tasks gather all positions (will be required for the next step)
-        // std::vector<int> recvcounts(mpiSize), recvdispls(mpiSize);
-        // for (int p = 0; p < mpiSize; ++p) { recvcounts[p] = counts[p]; recvdispls[p] = displs[p]; }
-        // MPI_Allgatherv(positions.data() + locOffset, locN, MPI_VEC,
-        //                positions.data(), recvcounts.data(), recvdispls.data(), 
-        //                MPI_VEC, MPI_COMM_WORLD); 
-
-        // if (mpiRank == 0) {
-        //     // save for testing
-        //     saveToFile("test1-MPI-reduced." + std::to_string(step) + ".out", n, steps, dt,
-        //         masses, positions, allVelocities, false);
-        // }
-
-        // TODO barrier here?
     }
 
     // gather all final positions and velocities to root process
@@ -633,11 +659,8 @@ void runMPIReduced(int argc, char** argv) {
 
     for (int i = mpiRank, lidx = 0; i < n; i += mpiSize, lidx++) {
         if (mpiRank == 0) {
-            // TODO update Vec to have better copying and addition
-            for (int d = 0; d < DIM; d++) {
-                finalPositions[i][d] = localPositions[lidx][d];
-                finalVelocities[i][d] = localVelocities[lidx][d];
-            }
+            finalPositions[i] = localPositions[lidx];
+            finalVelocities[i] = localVelocities[lidx];
         } else {
             MPI_Send(&localPositions[lidx], 1, MPI_VEC, 0, 200+i, MPI_COMM_WORLD);
             MPI_Send(&localVelocities[lidx], 1, MPI_VEC, 0, 400+i, MPI_COMM_WORLD);
