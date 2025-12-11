@@ -614,7 +614,7 @@ void runMPIReduced(int argc, char** argv) {
                     
                     // glbI < glbJ by construction
                     Vec force = force_on_p1(
-                        localPositions[locI], localPositions[locJ],
+                        localPositions[locI], tmpPos[locJ],
                         masses[glbI], masses[glbJ]
                     );
 
