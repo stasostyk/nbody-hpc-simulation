@@ -3,147 +3,154 @@
 #include <cmath>
 #include <chrono>
 
-constexpr int DIM = 2;
- 
-#include "forces/gravity.hpp"
+constexpr int MAX_DIM = 3;
+constexpr double G = 1.0;
+constexpr double EPS = 1e-3;
 
 struct Particle {
     double mass;
-    Vec<DIM> pos;
-    Vec<DIM> vel;
+    double pos[MAX_DIM];
+    double vel[MAX_DIM];
 };
 
-inline void compute_forces_basic(const std::vector<Particle>& p,
-                                 std::vector<Vec<DIM>>& forces, const forces::force<DIM>& force)
+void compute_forces_basic(const std::vector<Particle>& p,
+                          std::vector<std::vector<double>>& forces,
+                          int DIM)
 {
     const int n = p.size();
 
-    // Azzera forze
-    for (int q = 0; q < n; ++q) {
-        forces[q][0] = 0.0;
-        forces[q][1] = 0.0;
-    }
+    // azzera forze
+    for (int i = 0; i < n; ++i)
+        for (int d = 0; d < DIM; ++d)
+            forces[i][d] = 0.0;
 
-    // Tutte le coppie q != k
+    // tutte le coppie q != k
     for (int q = 0; q < n; ++q) {
         for (int k = 0; k < n; ++k) {
             if (q == k) continue;
 
-            forces[q] += force(p[q].pos, p[q].mass, p[k].pos, p[k].mass);
+            double dist2 = EPS * EPS;
+            double dvec[MAX_DIM];
+
+            for (int d = 0; d < DIM; ++d) {
+                dvec[d] = p[q].pos[d] - p[k].pos[d];
+                dist2 += dvec[d] * dvec[d];
+            }
+
+            double dist  = std::sqrt(dist2);
+            double dist3 = dist2 * dist;
+
+            double factor = G * p[q].mass * p[k].mass / dist3;
+
+            for (int d = 0; d < DIM; ++d)
+                forces[q][d] -= factor * dvec[d];
         }
     }
 }
 
-inline void update_particles(std::vector<Particle>& p,
-                             const std::vector<Vec<DIM>>& forces,
-                             double dt)
+double total_energy(const std::vector<Particle>& p, int DIM) {
+    const int n = (int)p.size();
+    double E = 0.0;
+
+    // Kinetic
+    for (int i = 0; i < n; ++i) {
+        double v2 = 0.0;
+        for (int d = 0; d < DIM; ++d) v2 += p[i].vel[d] * p[i].vel[d];
+        E += 0.5 * p[i].mass * v2;
+    }
+
+    // Potential (i<j)
+    for (int i = 0; i < n; ++i) {
+        for (int j = i + 1; j < n; ++j) {
+            double r2 = 0.0;
+            for (int d = 0; d < DIM; ++d) {
+                double dx = p[i].pos[d] - p[j].pos[d];
+                r2 += dx * dx;
+            }
+            double r = std::sqrt(r2 + EPS*EPS);
+            E -= G * p[i].mass * p[j].mass / r;
+        }
+    }
+    return E;
+}
+
+// EULER EXPLICIT
+void update_particles(std::vector<Particle>& p,
+                      const std::vector<std::vector<double>>& forces,
+                      int DIM, double dt)
 {
     const int n = p.size();
 
-    for (int q = 0; q < n; ++q) {
+    for (int i = 0; i < n; ++i) {
 
-        // Update posizione (x(t+dt) = x(t) + dt*v(t))
-        p[q].pos[0] += dt * p[q].vel[0];
-        p[q].pos[1] += dt * p[q].vel[1];
+        // posizione
+        for (int d = 0; d < DIM; ++d)
+            p[i].pos[d] += dt * p[i].vel[d];
 
-        // Update velocità (v(t+dt) = v(t) + dt*a)
-        p[q].vel[0] += dt * forces[q][0] / p[q].mass;
-        p[q].vel[1] += dt * forces[q][1] / p[q].mass;
+        // velocità
+        for (int d = 0; d < DIM; ++d)
+            p[i].vel[d] += dt * forces[i][d] / p[i].mass;
     }
-}
-
-//=========================== VERIFICA CONSERVAZIONE ENERGIA ==============================
-double total_energy(const std::vector<Particle>& p) {
-    double E = 0.0;
-    int n = p.size();
-
-    // Energia cinetica
-    for (int i = 0; i < n; i++) {
-        double vx = p[i].vel[0];
-        double vy = p[i].vel[1];
-        E += 0.5 * p[i].mass * (vx*vx + vy*vy);
-    }
-
-    // Energia potenziale gravitazionale
-    for (int i = 0; i < n; i++) {
-        for (int j = i+1; j < n; j++) {
-            double dx = p[i].pos[0] - p[j].pos[0];
-            double dy = p[i].pos[1] - p[j].pos[1];
-            double dist = std::sqrt(dx*dx + dy*dy + 1e-6*1e-6);
-
-            E -= forces::gravity<DIM>::G * p[i].mass * p[j].mass / dist;
-        }
-    }
-
-    return E;
 }
 
 
 int main()
 {
-    int dim, n, n_steps;
+    int DIM, n, n_steps;
     double dt;
 
-    std::cin >> dim >> n >> n_steps >> dt;
+    std::cin >> DIM >> n >> n_steps >> dt;
+
+    if (DIM < 2 || DIM > 3) {
+        std::cerr << "DIM must be 2 or 3\n";
+        return 1;
+    }
 
     std::vector<Particle> particles(n);
-    std::vector<Vec<DIM>> forces(n);
+    std::vector<std::vector<double>> forces(n, std::vector<double>(DIM));
 
-    int k=1;
+    // input particelle
+    for (int i = 0; i < n; ++i) {
+        std::cin >> particles[i].mass;
 
-    // Input particelle
-    for (int q = 0; q < n; ++q) {
-        std::cin >> particles[q].mass
-                 >> particles[q].pos[0] >> particles[q].pos[1]
-                 >> particles[q].vel[0] >> particles[q].vel[1];
-        k++;
+        for (int d = 0; d < DIM; ++d)
+            std::cin >> particles[i].pos[d];
+
+        for (int d = 0; d < DIM; ++d)
+            std::cin >> particles[i].vel[d];
     }
 
-    if(k!=n){
-        std::cerr << "MAKE SURE THAT N=NUMEBER_OF_PARTICLES\n\n";
-    }
-
-
-    for (int q = 0; q < n; ++q) {
-    if (std::isnan(particles[q].pos[0]) ||
-        std::isnan(particles[q].pos[1]) ||
-        std::isnan(particles[q].vel[0]) ||
-        std::isnan(particles[q].vel[1])) 
-    {
-        std::cerr << "NaN in input at particle " << q << "\n";
-        exit(1);
-    }
-    }
-
-
-    // Time loop
+    // time loop
     for (int step = 0; step < n_steps; ++step) {
-        
 
-            // --- TIMER START ---
         auto t0 = std::chrono::steady_clock::now();
-        compute_forces_basic(particles, forces, forces::gravity<DIM>{});
+        compute_forces_basic(particles, forces, DIM);
         auto t1 = std::chrono::steady_clock::now();
-        double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
-        // --- TIMER END ---
+
+        if (step == 0) {
+            double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+            std::cout << "Force compute time (ms): " << ms << "\n";
+        }
+
+        if (step % 200 == 0) {
+        std::cout << "Energy step " << step << ": " << total_energy(particles, DIM) << "\n";
+        }
 
 
-
-        if (step == 0) std::cerr << "Force compute time (ms): " << ms << "\n";
-
-        update_particles(particles, forces, dt);
-        /*if (step % 1000 == 0) {
-            std::cout << "Energy step " << step << ": " << total_energy(particles) << "\n";
-        }*/
-
+        update_particles(particles, forces, DIM, dt);
     }
 
-    // Output finale
-    for (int q = 0; q < n; ++q) {
-        std::cout << q << " "
-                  << particles[q].mass << " "
-                  << particles[q].pos[0] << " " << particles[q].pos[1] << " "
-                  << particles[q].vel[0] << " " << particles[q].vel[1] << "\n";
+    // output finale
+    for (int i = 0; i < n; ++i) {
+        std::cout << i << " " << particles[i].mass << " ";
+
+        for (int d = 0; d < DIM; ++d)
+            std::cout << particles[i].pos[d] << " ";
+
+        for (int d = 0; d < DIM; ++d)
+            std::cout << particles[i].vel[d] << " ";
+
+        std::cout << "\n";
     }
 
     return 0;
