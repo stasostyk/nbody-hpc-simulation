@@ -34,8 +34,21 @@ endif(BUILD_SIMULATION)
 if(BUILD_VISUALISATION)
     set(GLFW_BUILD_WAYLAND OFF CACHE BOOL "" FORCE)
     set(GLFW_BUILD_X11 ON CACHE BOOL "" FORCE)
-    
+
     add_subdirectory(external)
+    
+    set(IMGUI_SRC
+        external/imgui/imgui.cpp
+        external/imgui/imgui_draw.cpp
+        external/imgui/imgui_widgets.cpp
+        external/imgui/imgui_tables.cpp
+        external/imgui/imgui_demo.cpp
+        external/imgui/backends/imgui_impl_glfw.cpp
+        external/imgui/backends/imgui_impl_opengl3.cpp
+    )
+
+    add_library(imgui STATIC ${IMGUI_SRC})
+    target_include_directories(imgui PUBLIC external/imgui external/imgui/backends)
 
     find_package(OpenGL REQUIRED)
 
@@ -52,6 +65,7 @@ if(BUILD_VISUALISATION)
         glfw
         glm::glm
         OpenGL::GL
+        imgui
         ${CMAKE_DL_LIBS}
     )
 
