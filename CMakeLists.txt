@@ -32,9 +32,6 @@ if(BUILD_SIMULATION)
 endif(BUILD_SIMULATION)
 
 if(BUILD_VISUALISATION)
-    set(GLFW_BUILD_WAYLAND OFF CACHE BOOL "" FORCE)
-    set(GLFW_BUILD_X11 ON CACHE BOOL "" FORCE)
-    
     add_subdirectory(external)
 
     find_package(OpenGL REQUIRED)
@@ -52,6 +49,7 @@ if(BUILD_VISUALISATION)
         glfw
         glm::glm
         OpenGL::GL
+        imgui
         ${CMAKE_DL_LIBS}
     )
 
