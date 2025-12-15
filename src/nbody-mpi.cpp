@@ -1,26 +1,13 @@
-/*
-
-compilation:
-mpic++ -O3 -std=c++11 -o nbody_mpi_reduced_packed nbody_mpi_reduced_packed.cpp
-
-running:
-mpirun -n 4 ./nbody_mpi_reduced_packed 400 100 0.01 0
-
-*/
-
 #include <mpi.h>
 #include <assert.h>
-#include <array>
 #include <vector>
 #include <cmath>
-#include <random>
-#include <fstream>
 #include <iostream>
 
-const static int DIM = 2; // dimensions of the problem (2D or 3D)
-const double G = 6.673e-11; // gravitational constant
+#include "forces/gravity.hpp"
+#include "utils.hpp"
 
-using Vec = std::array<double, DIM>; // vector in our DIM-dimensional space
+constexpr int DIM = 2;
 
 static MPI_Datatype MPI_VEC;
 
@@ -62,89 +49,6 @@ inline static void freeMPIType() {
 //     return force;
 // }
 
-
-// gets force acting on particle p1
-inline Vec force_on_p1(
-    const Vec &pos1, 
-    const Vec &pos2,
-    double m1, double m2
-) {
-    Vec dist;
-    double distSquared = 1e-12; // softening to avoid division by zero
-    for (int i = 0; i < DIM; i++) {
-        dist[i] = pos1[i] - pos2[i];
-        distSquared += dist[i] * dist[i];
-    }
-
-    double dist3 = distSquared * std::sqrt(distSquared);
-    double coeff = -G * m1 * m2 / dist3;
-
-    Vec force;
-    for (int i = 0; i < DIM; i++) 
-        force[i] = dist[i] * coeff;
-    
-    return force;
-}
-
-inline void saveToFile(
-    const std::string &fileName,
-    int n, int steps, double dt,
-    const std::vector<double> &m, 
-    const std::vector<Vec> &p, 
-    const std::vector<Vec> &v,
-    bool saveVelocities = true
-) {
-    std::ofstream fout(fileName);
-
-    fout << DIM << "\n";
-    fout << n << " " << steps << " " << dt << "\n";
-    for (int i = 0; i < n; i++) {
-        fout << m[i] << " ";
-        for (int j = 0; j < DIM; j++) fout << p[i][j] << " ";
-        if (saveVelocities) {
-            for (int j = 0; j < DIM; j++) fout << v[i][j] << " ";
-        }
-        fout << "\n";
-    }
-    fout.flush();
-    fout.close();
-
-    std::cout << "Saved to file " << fileName << std::endl;
-}
-
-inline void readFromFile(
-    const std::string &fileName,
-    int &n, int &steps, double &dt,
-    std::vector<double> &m, 
-    std::vector<Vec> &p, 
-    std::vector<Vec> &v,
-    bool readVelocities = true
-) {
-    std::ifstream fin(fileName);
-
-    int dimInFile;
-    fin >> dimInFile;
-    assert(dimInFile == DIM);
-
-    fin >> n >> steps >> dt;
-
-    m.resize(n);
-    p.resize(n);
-    v.resize(n);
-
-    for (int i = 0; i < n; i++) {
-        fin >> m[i];
-        for (int j = 0; j < DIM; j++) fin >> p[i][j];
-        if (readVelocities) {
-            for (int j = 0; j < DIM; j++) fin >> v[i][j];
-        }
-    }
-
-    fin.close();
-    std::cout << "Read from file " << fileName << std::endl;
-    std::cout << "  DIM=" << DIM << " n=" << n << " steps=" << steps << " dt=" << dt << std::endl;
-}
-
 // utility: block counts/displacements for an array of N elements across comm_sz
 void make_counts_displs(int N, int comm_sz, std::vector<int> &counts, std::vector<int> &displs) {
     counts.resize(comm_sz);
@@ -159,36 +63,10 @@ void make_counts_displs(int N, int comm_sz, std::vector<int> &counts, std::vecto
     }
 }
 
-inline void initAndSaveRandom() {
-    int n = 100;
-    int steps = 10;
-    double dt = 0.01;
-
-    std::vector<double> masses(n);
-    std::vector<Vec> positions(n);
-    std::vector<Vec> velocities(n);
-
-    std::mt19937_64 rng(42);
-    std::uniform_real_distribution<double> posd(-100, 100);
-    std::uniform_real_distribution<double> massd(1, 100);
-    std::uniform_real_distribution<double> veld(-10, 10);
-    for (int i = 0; i < n; ++i) {
-        masses[i] = massd(rng);
-        for (int j = 0; j < DIM; j++) {
-            positions[i][j] = posd(rng);
-            velocities[i][j] = veld(rng);
-        }
-    }
-
-    // save to file
-    saveToFile("test1.in.out", n, steps, dt, masses, positions, velocities);
-}
-
-inline void runSerial() {
+inline void runSerial(const forces::force<DIM>& force) {
 
     // BELOW CODE: for generating random test1.in.out
-    // initAndSaveRandom();
-    // // return 0;
+    // utils::generateRandomToFile<DIM>("test1.in.out");
     // exit(0);
 
     int n;
@@ -196,11 +74,11 @@ inline void runSerial() {
     double dt;
 
     std::vector<double> masses;
-    std::vector<Vec> positions;
-    std::vector<Vec> velocities;
-    std::vector<Vec> forces;
+    std::vector<Vec<DIM>> positions;
+    std::vector<Vec<DIM>> velocities;
+    std::vector<Vec<DIM>> forces;
 
-    readFromFile("test1.in.out", n, steps, dt, masses, positions, velocities);
+    utils::readFromFile("test1.in.out", n, steps, dt, masses, positions, velocities);
 
     forces.resize(n);
     for (int i = 0; i < n; i++) for (int j = 0; j < DIM; j++)
@@ -218,10 +96,7 @@ inline void runSerial() {
         for (int i = 0; i < n; i++) {
             for (int k = 0; k < n; k++) {
                 if (i == k) continue;
-                Vec force = force_on_p1(positions[i], positions[k], masses[i], masses[k]);
-                for (int j = 0; j < DIM; j++) {
-                    forces[i][j] += force[j];
-                }
+                forces[i] += force(positions[i], masses[i], positions[k], masses[k]);
             }
         }
 
@@ -234,7 +109,7 @@ inline void runSerial() {
         }
     
         // save for testing
-        saveToFile("test1." + std::to_string(step) + ".out", n, steps, dt,
+        utils::saveToFile("test1." + std::to_string(step) + ".out", n, steps, dt,
             masses, positions, velocities, false);
     }
 
@@ -266,15 +141,15 @@ inline void compareOutputs() {
         double dt_serial, dt_mpi;
 
         std::vector<double> masses_serial, masses_mpi;
-        std::vector<Vec> positions_serial, positions_mpi;
+        std::vector<Vec<DIM>> positions_serial, positions_mpi;
 
         std::string filename_suf = + "." + std::to_string(step) + ".out";
         std::string filename_serial = serial_pref + filename_suf;
         std::string filename_mpi = mpi_pref + filename_suf;
 
-        readFromFile(filename_serial, n_serial, steps_serial, dt_serial, 
+        utils::readFromFile(filename_serial, n_serial, steps_serial, dt_serial, 
                      masses_serial, positions_serial, positions_serial, false);
-        readFromFile(filename_mpi, n_mpi, steps_mpi, dt_mpi, 
+        utils::readFromFile(filename_mpi, n_mpi, steps_mpi, dt_mpi, 
                      masses_mpi, positions_mpi, positions_mpi, false);
 
         assert(steps == steps_mpi && steps_mpi == steps_serial);
@@ -295,7 +170,7 @@ inline void compareOutputs() {
 
 int main(int argc, char** argv) {
 
-    // runSerial();
+    // runSerial(forces::gravity<DIM>{});
     // return 0;
 
     // compareOutputs();
@@ -307,6 +182,9 @@ int main(int argc, char** argv) {
     - later: instead of basic version, do the reduced version
     */
 
+    forces::gravity<DIM> gravity{};
+    const forces::force<DIM> &force = gravity;
+
     int mpiSize, mpiRank;
     allMPIInit(&argc, &argv, mpiSize, mpiRank);
     
@@ -315,14 +193,14 @@ int main(int argc, char** argv) {
     double dt;
 
     std::vector<double> masses;
-    std::vector<Vec> positions;
-    std::vector<Vec> allVelocities; // only filled by mpiRank=0
-    std::vector<Vec> localVelocities;
-    std::vector<Vec> localForces;
+    std::vector<Vec<DIM>> positions;
+    std::vector<Vec<DIM>> allVelocities; // only filled by mpiRank=0
+    std::vector<Vec<DIM>> localVelocities;
+    std::vector<Vec<DIM>> localForces;
 
     if (mpiRank == 0) {
         // Root process reads input, and will broadcast the data.
-        readFromFile("test1.in.out", n, steps, dt, masses, positions, allVelocities);
+        utils::readFromFile("test1.in.out", n, steps, dt, masses, positions, allVelocities);
     } 
 
     MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
@@ -371,11 +249,7 @@ int main(int argc, char** argv) {
             int q = locOffset + i;
             for (int k = 0; k < n; k++) {
                 if (q == k) continue;
-
-                Vec force = force_on_p1(positions[q], positions[k], masses[q], masses[k]);
-                for (int j = 0; j < DIM; j++) {
-                    localForces[i][j] += force[j];
-                }
+                localForces[i] += force(positions[i], masses[i], positions[k], masses[k]);
             }
         }
 
@@ -398,7 +272,7 @@ int main(int argc, char** argv) {
 
         if (mpiRank == 0) {
             // save for testing
-            saveToFile("test1-MPI." + std::to_string(step) + ".out", n, steps, dt,
+            utils::saveToFile("test1-MPI." + std::to_string(step) + ".out", n, steps, dt,
                 masses, positions, allVelocities, false);
         }
     }
