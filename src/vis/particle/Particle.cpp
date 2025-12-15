@@ -72,11 +72,6 @@ void Particle::init()
 
 void Particle::draw(Shader& shader)
 {
-    trace.push_back(position);
-    if (trace.size() > 300) {
-        trace.erase(trace.begin());
-    }
-
     glm::mat4 model = glm::mat4(1.0f);
     model = glm::translate(model, position);
     model = glm::scale(model, glm::vec3(radius));
