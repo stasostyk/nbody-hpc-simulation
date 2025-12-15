@@ -10,32 +10,32 @@ namespace integrators {
 // position update recomputes acceleration using updated positions this way it
 // takes into account the change in acceleration due to position change
 template <int DIM> 
-class Verlet : Integrator<DIM> {
+class Verlet : public Integrator<DIM> {
 private:
-  const AccelerationAccumulator<DIM> accelerationAccumulator;
+  AccelerationAccumulator<DIM>& accelerationAccumulator;
 
 public:
-  Verlet(AccelerationAccumulator<DIM> accelerationAccumulator)
+  Verlet(AccelerationAccumulator<DIM>& accelerationAccumulator)
       : accelerationAccumulator(accelerationAccumulator) {}
 
-  void step(std::vector<body<DIM>> &bodies, double dt) override {
+  void step(bodies<DIM> &bodies, double dt) override {
 
     accelerationAccumulator.compute(bodies);
-    size_t n = bodies.size();
-    for (int i = 0; i < n; ++i) {
+    size_t n = bodies.localSize();
+    for (size_t i = 0; i < n; ++i) {
       for (int d = 0; d < DIM; ++d) {
         // we update velocity only by half step
-        bodies[i].velocity[d] += accelerationAccumulator.accel(i)[d] * 0.5 * dt;
+        bodies.local(i).vel()[d] += accelerationAccumulator.accel(i)[d] * 0.5 * dt;
         // then we update position using this half step velocity
-        bodies[i].position[d] += bodies[i].velocity[d] * dt;
+        bodies.local(i).pos()[d] += bodies.local(i).vel()[d] * dt;
       }
     }
     // recompute acceleration with new positions
     accelerationAccumulator.compute(bodies);
-    for (int i = 0; i < n; ++i) {
+    for (size_t i = 0; i < n; ++i) {
       for (int d = 0; d < DIM; ++d) {
         // complete velocity update with the new acceleration
-        bodies[i].velocity[d] += accelerationAccumulator.accel(i)[d] * 0.5 * dt;
+        bodies.local(i).vel()[d] += accelerationAccumulator.accel(i)[d] * 0.5 * dt;
       }
     }
   }

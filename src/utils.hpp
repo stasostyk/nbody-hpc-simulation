@@ -6,60 +6,57 @@
 #include <random>
 #include <vector>
 
-#include "vec.hpp"
+#include "body.hpp"
 
 namespace utils {
 
 template <int DIM>
-void saveToStream(std::ostream &out, int n, int steps, double dt,
-                  const std::vector<double> &m, const std::vector<Vec<DIM>> &p,
-                  const std::vector<Vec<DIM>> &v, bool saveVelocities = true) {
+void saveToStream(std::ostream &out, int steps, double dt,
+                  const bodies<DIM>& bodies, bool saveVelocities = true) {
   out << DIM << "\n";
-  out << n << " " << steps << " " << dt << "\n";
-  for (int i = 0; i < n; i++) {
-    out << m[i] << " ";
+  out << bodies.globalSize() << " " << steps << " " << dt << "\n";
+  for (size_t i = 0; i < bodies.globalSize(); i++) {
+    out << bodies.global(i).mass() << " ";
     for (int j = 0; j < DIM; j++)
-      out << p[i][j] << " ";
+      out << bodies.global(i).pos()[j] << " ";
     if (saveVelocities) {
       for (int j = 0; j < DIM; j++)
-        out << v[i][j] << " ";
+        out << bodies.global(i).vel()[j] << " ";
     }
     out << "\n";
   }
 }
 
 template <int DIM>
-void readFromStream(std::istream &in, int &n, int &steps, double &dt,
-                    std::vector<double> &m, std::vector<Vec<DIM>> &p,
-                    std::vector<Vec<DIM>> &v, bool readVelocities = true) {
+void readFromStream(std::istream &in, int &steps, double &dt,
+                    bodies<DIM>& bodies, bool readVelocities = true) {
   int dimInFile;
   in >> dimInFile;
   assert(dimInFile == DIM);
 
+  int n;
+
   in >> n >> steps >> dt;
 
-  m.resize(n);
-  p.resize(n);
-  v.resize(n);
+  bodies.resize(n, n, 0);
 
   for (int i = 0; i < n; i++) {
-    in >> m[i];
+    in >> bodies.global(i).mass();
     for (int j = 0; j < DIM; j++)
-      in >> p[i][j];
+      in >> bodies.global(i).pos()[j];
     if (readVelocities) {
       for (int j = 0; j < DIM; j++)
-        in >> v[i][j];
+        in >> bodies.global(i).vel()[j];
     }
   }
 }
 
 template <int DIM>
-void saveToFile(const std::string &fileName, int n, int steps, double dt,
-                const std::vector<double> &m, const std::vector<Vec<DIM>> &p,
-                const std::vector<Vec<DIM>> &v, bool saveVelocities = true) {
+void saveToFile(const std::string &fileName, int steps, double dt,
+                const bodies<DIM>& bodies, bool saveVelocities = true) {
   std::ofstream fout(fileName);
 
-  saveToStream(fout, n, steps, dt, m, p, v);
+  saveToStream(fout, steps, dt, bodies, saveVelocities);
 
   fout.flush();
   fout.close();
@@ -68,16 +65,15 @@ void saveToFile(const std::string &fileName, int n, int steps, double dt,
 }
 
 template <int DIM>
-void readFromFile(const std::string &fileName, int &n, int &steps, double &dt,
-                  std::vector<double> &m, std::vector<Vec<DIM>> &p,
-                  std::vector<Vec<DIM>> &v, bool readVelocities = true) {
+void readFromFile(const std::string &fileName, int &steps, double &dt,
+                  bodies<DIM>& bodies, bool readVelocities = true) {
   std::ifstream fin(fileName);
 
-  readFromStream(fin, n, steps, dt, m, p, v);
+  readFromStream(fin, steps, dt, bodies, readVelocities);
 
   fin.close();
   std::cout << "Read from file " << fileName << std::endl;
-  std::cout << "  DIM=" << DIM << " n=" << n << " steps=" << steps
+  std::cout << "  DIM=" << DIM << " n=" << bodies.globalSize() << " steps=" << steps
             << " dt=" << dt << std::endl;
 }
 

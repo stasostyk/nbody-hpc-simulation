@@ -10,27 +10,27 @@ namespace integrators {
 // position using OLD velocity (wgy it's not accurate) then updating velocity
 // using acceleration
 template <int DIM> 
-class Euler : Integrator<DIM> {
+class Euler : public Integrator<DIM> {
 private:
-  const AccelerationAccumulator<DIM> accelerationAccumulator;
+  AccelerationAccumulator<DIM>& accelerationAccumulator;
 
 public:
-  Euler(AccelerationAccumulator<DIM> accelerationAccumulator)
+  Euler(AccelerationAccumulator<DIM>& accelerationAccumulator)
       : accelerationAccumulator(accelerationAccumulator) {}
 
-  void step(std::vector<body<DIM>> &bodies, double dt) override {
+  void step(bodies<DIM> &bodies, double dt) override {
 
     accelerationAccumulator.compute(bodies);
-    size_t n = bodies.size();
-    for (int i = 0; i < n; ++i) {
+    size_t n = bodies.localSize();
+    for (size_t i = 0; i < n; ++i) {
       for (int d = 0; d < DIM; ++d) {
-        bodies[i].position[d] += bodies[i].velocity[d] * dt;
+        bodies.local(i).pos()[d] += bodies.local(i).vel()[d] * dt;
       }
     }
 
-    for (int i = 0; i < n; ++i) {
+    for (size_t i = 0; i < n; ++i) {
       for (int d = 0; d < DIM; ++d) {
-        bodies[i].velocity[d] += accelerationAccumulator.accel(i)[d] * dt;
+        bodies.local(i).vel()[d] += accelerationAccumulator.accel(i)[d] * dt;
       }
     }
   }

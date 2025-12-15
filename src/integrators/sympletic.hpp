@@ -9,22 +9,22 @@ namespace integrators {
 // diffrience is that it updates velocity first then position using NEW velocity
 // that's why it's more accurate
 template <int DIM> 
-class Sympletic : Integrator<DIM> {
+class Sympletic : public Integrator<DIM> {
 private:
-  const AccelerationAccumulator<DIM> accelerationAccumulator;
+  AccelerationAccumulator<DIM>& accelerationAccumulator;
 
 public:
-  Sympletic(AccelerationAccumulator<DIM> accelerationAccumulator)
+  Sympletic(AccelerationAccumulator<DIM>& accelerationAccumulator)
       : accelerationAccumulator(accelerationAccumulator) {}
 
-  void step(std::vector<body<DIM>> &bodies, double dt) override {
+  void step(bodies<DIM> &bodies, double dt) override {
 
     accelerationAccumulator.compute(bodies);
-    size_t n = bodies.size();
-    for (int i = 0; i < n; ++i) {
+    size_t n = bodies.localSize();
+    for (size_t i = 0; i < n; ++i) {
       for (int d = 0; d < DIM; ++d) {
-        bodies[i].velocity[d] += accelerationAccumulator.accel(i)[d] * dt;
-        bodies[i].position[d] += bodies[i].velocity[d] * dt;
+        bodies.local(i).vel()[d] += accelerationAccumulator.accel(i)[d] * dt;
+        bodies.local(i).pos()[d] += bodies.local(i).vel()[d] * dt;
       }
     }
   }
