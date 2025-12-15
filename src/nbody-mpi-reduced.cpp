@@ -37,45 +37,40 @@ inline void allMPIFinalize() {
     MPI_Finalize();
 }
 
-// inline void compareOutputs() {
+inline void compareOutputsSingleFiles(std::string filename_serial, std::string filename_mpi) {
+    double e = 1e-2;
 
-//     std::string serial_pref = "test1";
-//     std::string mpi_pref = "test1-MPI";
-//     int steps = 10;
-//     double e = 1e-10;
+    int n_serial, n_mpi;
+    int steps_serial, steps_mpi;
+    double dt_serial, dt_mpi;
 
-//     for (int step = 0; step < steps; step++) {
-//         int n_serial, n_mpi;
-//         int steps_serial, steps_mpi;
-//         double dt_serial, dt_mpi;
+    std::vector<double> masses_serial, masses_mpi;
+    std::vector<Vec<DIM>> positions_serial, positions_mpi;
 
-//         std::vector<double> masses_serial, masses_mpi;
-//         std::vector<Vec> positions_serial, positions_mpi;
+    utils::readFromFile(filename_serial, n_serial, steps_serial, dt_serial, 
+                    masses_serial, positions_serial, positions_serial, false);
+    utils::readFromFile(filename_mpi, n_mpi, steps_mpi, dt_mpi, 
+                    masses_mpi, positions_mpi, positions_mpi, false);
 
-//         std::string filename_suf = + "." + std::to_string(step) + ".out";
-//         std::string filename_serial = serial_pref + filename_suf;
-//         std::string filename_mpi = mpi_pref + filename_suf;
+    assert(steps_mpi == steps_serial);
+    assert(n_mpi == n_serial);
+    assert(fabs(dt_mpi - dt_serial) < e);
+    
+    for (int i = 0; i < n_mpi; i++) {
+        assert(fabs(masses_mpi[i]- masses_serial[i]) < e);
+        for (int j = 0; j < DIM; j++) {
+            assert(fabs(positions_mpi[i][j] - positions_serial[i][j]) < e);
+            if (fabs(positions_mpi[i][j] - positions_serial[i][j]) > e) {
+                std::cout << "PARTICLE i=" << i << " IS WRONG" << std::endl;
+                std::cout << "   diff: " << positions_mpi[i][j] << " and " << positions_serial[i][j] << std::endl;
+            }
+        }
+    }
 
-//         readFromFile(filename_serial, n_serial, steps_serial, dt_serial, 
-//                      masses_serial, positions_serial, positions_serial, false);
-//         readFromFile(filename_mpi, n_mpi, steps_mpi, dt_mpi, 
-//                      masses_mpi, positions_mpi, positions_mpi, false);
+    std::cout << "CHECK FINISHED, EVERYTHING IS FINE" << std::endl;
 
-//         assert(steps == steps_mpi && steps_mpi == steps_serial);
-//         assert(n_mpi == n_serial);
-//         assert(fabs(dt_mpi - dt_serial) < e);
-        
-//         for (int i = 0; i < n_mpi; i++) {
-//             assert(fabs(masses_mpi[i]- masses_serial[i]) < e);
-//             for (int j = 0; j < DIM; j++) {
-//                 assert(fabs(positions_mpi[i][j] - positions_serial[i][j]) < e);
-//             }
-//         }
-//     }
+}
 
-//     std::cout << "CHECK FINISHED, EVERYTHING IS FINE" << std::endl;
-
-// }
 
 // assumes n%mpiSize==0, cyclic distribution
 static inline int global_to_local(int glb, int comm_sz) {
@@ -133,7 +128,7 @@ void runMPIReduced(int argc, char** argv, const forces::force<DIM>& force) {
 
     int locN = n / mpiSize;
 
-    // std::cout << " rank=" << mpiRank << " locN: " << locN << " locOffset: " << locOffset << std::endl;
+    std::cout << " rank=" << mpiRank << " locN: " << locN << std::endl;
 
     if (mpiRank != 0) {
         masses.resize(n);
@@ -291,18 +286,10 @@ void runMPIReduced(int argc, char** argv, const forces::force<DIM>& force) {
 }
 
 int main(int argc, char** argv) {
-
-    // runSerial();
-    // return 0;
-
-    // compareOutputs();
-    // return 0;
-
-    // runMPISerial();
-
+    
     forces::gravity<DIM> gravity{};
     const forces::force<DIM> &force = gravity;
 
     runMPIReduced(argc, argv, force);
-    // compareOutputsSingleFiles("test1.9.out", "test-MPI-reduced-final.out");
+    // compareOutputsSingleFiles("../build/test1-MPI.999.out", "../build/test-MPI-reduced-final.out");
 }
