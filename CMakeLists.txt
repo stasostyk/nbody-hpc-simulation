@@ -29,6 +29,7 @@ if(BUILD_SIMULATION)
     add_executable(nbody_reduced src/serial.cpp)
     add_compile_definitions(nbody_reduced REDUCED)
     add_executable(nbody_mpi src/nbody-mpi.cpp)
+    add_executable(nbody_mpi_reduced src/nbody-mpi-reduced.cpp)
 
 endif(BUILD_SIMULATION)
 
