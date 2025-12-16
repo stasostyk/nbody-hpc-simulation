@@ -4,7 +4,6 @@
 #include "forces/func.hpp"
 #include <mpi.h>
 
-// Given a collection of bodies this class computes their accelerations.
 template <int DIM> class MPIAccumulator : public AccelerationAccumulator<DIM> {
 private:
   const MPI_Datatype &_MPI_VEC;
