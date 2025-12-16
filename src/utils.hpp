@@ -59,7 +59,7 @@ void saveToFile(const std::string &fileName, int n, int steps, double dt,
                 const std::vector<Vec<DIM>> &v, bool saveVelocities = true) {
   std::ofstream fout(fileName);
 
-  saveToStream(fout, n, steps, dt, m, p, v);
+  saveToStream(fout, n, steps, dt, m, p, v, saveVelocities);
 
   fout.flush();
   fout.close();
@@ -73,7 +73,7 @@ void readFromFile(const std::string &fileName, int &n, int &steps, double &dt,
                   std::vector<Vec<DIM>> &v, bool readVelocities = true) {
   std::ifstream fin(fileName);
 
-  readFromStream(fin, n, steps, dt, m, p, v);
+  readFromStream(fin, n, steps, dt, m, p, v, readVelocities);
 
   fin.close();
   std::cout << "Read from file " << fileName << std::endl;
