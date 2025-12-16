@@ -11,7 +11,7 @@
 #include "utils.hpp"
 #include "forces/gravity.hpp"
 
-constexpr int DIM = 2; // dimensions of the problem (2D or 3D)
+constexpr int DIM = 3; // dimensions of the problem (2D or 3D)
 
 static MPI_Datatype MPI_VEC;
 
@@ -95,9 +95,49 @@ int first_index_gt(int glb_part1, int owner, int comm_sz, int n) {
     return (glb < n) ? glb : -1;
 }
 
-void runMPIReduced(int argc, char** argv, const forces::force<DIM>& force) {
+void gatherAndSaveAllPositions(int mpiSize, int mpiRank, int n, int steps, double dt,
+                                const std::vector<Vec<DIM>> &localPositions,
+                                const std::vector<Vec<DIM>> &localVelocities,
+                                const std::vector<double> &masses,
+                                const std::string &filetag) {
+    // gather all final positions and velocities to root process
+    std::vector<Vec<DIM>> finalPositions;
+    std::vector<Vec<DIM>> finalVelocities;
+
+    if (mpiRank == 0) {
+        finalPositions.resize(n);
+        finalVelocities.resize(n);
+    }
+
+    for (int i = mpiRank, lidx = 0; i < n; i += mpiSize, lidx++) {
+        if (mpiRank == 0) {
+            finalPositions[i] = localPositions[lidx];
+            finalVelocities[i] = localVelocities[lidx];
+        } else {
+            MPI_Send(&localPositions[lidx], 1, MPI_VEC, 0, 200+i, MPI_COMM_WORLD);
+            MPI_Send(&localVelocities[lidx], 1, MPI_VEC, 0, 400+i, MPI_COMM_WORLD);
+        }
+    }
+
+    if (mpiRank == 0) {
+        for (int r = 1; r < mpiSize; r++) {
+            for (int i = r; i < n; i += mpiSize) {
+                MPI_Recv(&finalPositions[i], 1, MPI_VEC, r, 200+i, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                MPI_Recv(&finalVelocities[i], 1, MPI_VEC, r, 400+i, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            }
+        }
+
+        utils::saveToFile("test-MPI-reduced-" + filetag + ".out", n, steps, dt, masses, finalPositions, finalVelocities, false);
+    }
+}
+
+void runMPIReduced(int argc, char** argv, const forces::force<DIM>& force, bool saveEachStep) {
     int mpiSize, mpiRank;
     allMPIInit(&argc, &argv, mpiSize, mpiRank);
+
+    if (mpiRank == 0) {
+        utils::generateRandomToFile<DIM>("test1.in.out", 100, 10, 0.01, 42);
+    }
 
     int n;
     int steps;
@@ -197,7 +237,6 @@ void runMPIReduced(int argc, char** argv, const forces::force<DIM>& force) {
         for (int phase = 1; phase < mpiSize; phase++) {
             // send tmpData (tmp Positions and tmp Forces) to dest, and receive into the same 
             // buffer from the source
-            // TODO why the tag is 99??
             MPI_Sendrecv_replace(
                 tmpData, 2*locN, MPI_VEC,
                 dest, 99,
@@ -231,7 +270,6 @@ void runMPIReduced(int argc, char** argv, const forces::force<DIM>& force) {
         }
 
         // one last send/recv of tmp arrays
-        // TODO why tag is 98??
         MPI_Sendrecv_replace(
             tmpData, 2*locN, MPI_VEC,
             dest, 98, source, 98,
@@ -249,37 +287,12 @@ void runMPIReduced(int argc, char** argv, const forces::force<DIM>& force) {
             localPositions[locI] += dt * localVelocities[locI];
             localVelocities[locI] += dt * invM * localForces[locI];
         }
+
+        if (saveEachStep)
+            gatherAndSaveAllPositions(mpiSize, mpiRank, n, steps, dt, localPositions, localVelocities, masses, std::to_string(step));
     }
 
-    // gather all final positions and velocities to root process
-    std::vector<Vec<DIM>> finalPositions;
-    std::vector<Vec<DIM>> finalVelocities;
-
-    if (mpiRank == 0) {
-        finalPositions.resize(n);
-        finalVelocities.resize(n);
-    }
-
-    for (int i = mpiRank, lidx = 0; i < n; i += mpiSize, lidx++) {
-        if (mpiRank == 0) {
-            finalPositions[i] = localPositions[lidx];
-            finalVelocities[i] = localVelocities[lidx];
-        } else {
-            MPI_Send(&localPositions[lidx], 1, MPI_VEC, 0, 200+i, MPI_COMM_WORLD);
-            MPI_Send(&localVelocities[lidx], 1, MPI_VEC, 0, 400+i, MPI_COMM_WORLD);
-        }
-    }
-
-    if (mpiRank == 0) {
-        for (int r = 1; r < mpiSize; r++) {
-            for (int i = r; i < n; i += mpiSize) {
-                MPI_Recv(&finalPositions[i], 1, MPI_VEC, r, 200+i, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                MPI_Recv(&finalVelocities[i], 1, MPI_VEC, r, 400+i, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            }
-        }
-
-        utils::saveToFile("test-MPI-reduced-final.out", n, steps, dt, masses, finalPositions, finalVelocities, false);
-    }
+    gatherAndSaveAllPositions(mpiSize, mpiRank, n, steps, dt, localPositions, localVelocities, masses, "final");
 
     free(tmpData);
     allMPIFinalize();
@@ -289,7 +302,8 @@ int main(int argc, char** argv) {
     
     forces::gravity<DIM> gravity{};
     const forces::force<DIM> &force = gravity;
+    bool saveEachStep = true;
 
-    runMPIReduced(argc, argv, force);
+    runMPIReduced(argc, argv, force, saveEachStep);
     // compareOutputsSingleFiles("../build/test1-MPI.999.out", "../build/test-MPI-reduced-final.out");
 }
