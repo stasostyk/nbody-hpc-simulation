@@ -20,24 +20,19 @@
 #include "../utils.hpp"
 
 constexpr int DIM = 2;
-const int NUM_FILES = 10;
+const int NUM_FILES = 1000;
 int WINDOW_HEIGHT  = 700;
 int WINDOW_WIDTH = 700;
 
 void loadParticles(int index, std::vector<Particle>& particles) {
     particles.clear();
-    int n;
     int steps;
     double dt;
-    std::vector<double> masses;
-    std::vector<Vec<DIM>> positions;
-    std::vector<Vec<DIM>> velocities;
-    std::vector<Vec<DIM>> forces;
-    utils::readFromFile("../build/test1-MPI."+std::to_string(index)+".out", n, steps, dt, masses, positions, velocities);
-    
+    bodies<DIM> bodies;
+    utils::readFromFile("../build/test-MPI-reduced-"+std::to_string(index)+".out", steps, dt, bodies);
 
-    for (int i = 0; i < n; i++) {
-        Particle p(glm::vec3(positions[i][0], positions[i][1], 0.0f), glm::vec3(i*1.0f/n, 0.0f, 1.0f), masses[i]/20.0f);
+    for (int i = 0; i < bodies.globalSize(); i++) {
+        Particle p(glm::vec3(bodies.position[i][0], bodies.position[i][1], 0.0f), glm::vec3(i*1.0f/bodies.globalSize(), 0.0f, 1.0f), bodies.mass[i]/20.0f);
         p.init();
         particles.push_back(p);
     }
@@ -124,7 +119,7 @@ int main() {
 
         ImGui::Begin("Particle Loader");
         if (ImGui::Button("Next Timestep")) {
-            currentParticleSet = (currentParticleSet + 1) % NUM_FILES;
+            currentParticleSet = (currentParticleSet + 20) % NUM_FILES;
             loadParticles(currentParticleSet, particles);
         }
         ImGui::End();

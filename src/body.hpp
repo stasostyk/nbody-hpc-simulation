@@ -3,6 +3,7 @@
 #include "vec.hpp"
 
 template <int DIM> struct body;
+template <int DIM> struct bodyView;
 
 // Store bodies as structure of arrays
 // View bodies as array of structure
@@ -11,7 +12,7 @@ private:
   size_t _globalSize = 0;
   size_t _localSize = 0;
   size_t _localOffset = 0;
-  std::vector<body<DIM>> _views;
+  std::vector<bodyView<DIM>> _views;
 
 public:
   std::vector<Vec<DIM>> position;
@@ -29,7 +30,7 @@ public:
 
     _views.clear();
     for (int i = 0; i < globalSize; i++) {
-      _views.push_back(body<DIM>(*this, i));
+      _views.push_back(bodyView<DIM>(*this, i));
     }
   }
   body<DIM> &global(int index) { return _views[index]; }
@@ -44,16 +45,46 @@ public:
 };
 
 template <int DIM> struct body {
+public:
+  virtual Vec<DIM> &pos() = 0;
+  virtual const Vec<DIM> &pos() const = 0;
+  virtual Vec<DIM> &vel() = 0;
+  virtual const Vec<DIM> &vel() const = 0;
+  virtual double &mass() = 0;
+  virtual const double &mass() const = 0;
+};
+
+template <int DIM> struct bodyView : body<DIM> {
 private:
-  bodies<DIM>& _bodies;
+  bodies<DIM> &_bodies;
 
 public:
-  body(bodies<DIM> &bodies, int index) : _bodies(bodies), index(index) {}
+  bodyView(bodies<DIM> &bodies, int index) : _bodies(bodies), index(index) {}
   const int index;
-  Vec<DIM> &pos() { return _bodies.position[index]; }
-  const Vec<DIM> &pos() const { return _bodies.position[index]; }
-  Vec<DIM> &vel() { return _bodies.velocity[index]; }
-  const Vec<DIM> &vel() const { return _bodies.velocity[index]; }
-  double &mass() { return _bodies.mass[index]; }
-  const double &mass() const { return _bodies.mass[index]; }
+  Vec<DIM> &pos() override { return _bodies.position[index]; }
+  const Vec<DIM> &pos() const override { return _bodies.position[index]; }
+  Vec<DIM> &vel() override { return _bodies.velocity[index]; }
+  const Vec<DIM> &vel() const override { return _bodies.velocity[index]; }
+  double &mass() override { return _bodies.mass[index]; }
+  const double &mass() const override { return _bodies.mass[index]; }
+};
+
+template <int DIM> struct bodyCopy : public body<DIM> {
+private:
+  Vec<DIM> _pos;
+  Vec<DIM> _vel;
+  double _mass;
+
+public:
+  bodyCopy(Vec<DIM> pos, Vec<DIM> vel, double mass) {
+      std::copy_n(pos.begin(), DIM, _pos.begin());
+      std::copy_n(vel.begin(), DIM, _vel.begin());
+      _mass = mass;
+  }
+  Vec<DIM> &pos() override { return _pos; }
+  const Vec<DIM> &pos() const override { return _pos; }
+  Vec<DIM> &vel() override { return _vel; }
+  const Vec<DIM> &vel() const override { return _vel; }
+  double &mass() override { return _mass; }
+  const double &mass() const override { return _mass; }
 };

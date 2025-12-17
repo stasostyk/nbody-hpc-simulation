@@ -85,9 +85,8 @@ void generateRandomToFile(const std::string &filename, int n = 100,
   constexpr int MIN_MASS = 1;
   constexpr int MAX_MASS = 100;
 
-  std::vector<double> masses(n);
-  std::vector<Vec<DIM>> positions(n);
-  std::vector<Vec<DIM>> velocities(n);
+  bodies<DIM> bodies;
+  bodies.resize(n, n, 0);
 
   std::mt19937_64 rng(seed);
   std::uniform_real_distribution<double> posd(-MAX_POS_COMPONENT,
@@ -96,14 +95,48 @@ void generateRandomToFile(const std::string &filename, int n = 100,
   std::uniform_real_distribution<double> veld(-MAX_VEL_COMPONENT,
                                               MAX_VEL_COMPONENT);
   for (int i = 0; i < n; ++i) {
-    masses[i] = massd(rng);
+    bodies.mass[i] = massd(rng);
     for (int j = 0; j < DIM; j++) {
-      positions[i][j] = posd(rng);
-      velocities[i][j] = veld(rng);
+      bodies.position[i][j] = posd(rng);
+      bodies.velocity[i][j] = veld(rng);
     }
   }
 
-  saveToFile(filename, n, steps, dt, masses, positions, velocities);
+  saveToFile(filename, steps, dt, bodies);
+}
+
+template<int DIM>
+void compareOutputs(const std::string& prefixA = "test1", const std::string& prefixB = "test1-MPI", int steps = 10) {
+    constexpr double tol = 1e-10;
+
+    for (int step = 0; step < steps; step++) {
+        int stepsA, stepsB;
+        double dtA, dtB;
+        bodies<DIM> bodiesA, bodiesB;
+
+        std::vector<double> masses_serial, masses_mpi;
+        std::vector<Vec<DIM>> positions_serial, positions_mpi;
+
+        std::string filenameSuffix = + "." + std::to_string(step) + ".out";
+        std::string filenameA = prefixA + filenameSuffix;
+        std::string filenameB = prefixB + filenameSuffix;
+
+        utils::readFromFile(filenameA, stepsA, dtA, bodiesA);
+        utils::readFromFile(filenameB, stepsB, dtB, bodiesB);
+
+        assert(steps == stepsA && stepsA == stepsB);
+        assert(bodiesA.localSize() == bodiesB.localSize());
+        assert(fabs(dtA - dtB) < tol);
+        
+        for (size_t i = 0; i < bodiesA.localSize(); i++) {
+            assert(fabs(bodiesA.local(i).mass() == bodiesB.local(i).mass()) < tol);
+            for (int j = 0; j < DIM; j++) {
+                assert(fabs(bodiesA.local(i).pos()[j] == bodiesB.local(i).pos()[j]) < tol);
+            }
+        }
+    }
+
+    std::cout << "CHECK FINISHED, EVERYTHING IS FINE" << std::endl;
 }
 
 } // namespace utils
