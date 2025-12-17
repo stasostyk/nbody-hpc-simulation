@@ -3,6 +3,7 @@
 #include <vector>
 #include <cmath>
 #include <iostream>
+#include <chrono>
 
 #include "forces/gravity.hpp"
 #include "utils.hpp"
@@ -187,6 +188,12 @@ int main(int argc, char** argv) {
 
     int mpiSize, mpiRank;
     allMPIInit(&argc, &argv, mpiSize, mpiRank);
+
+
+    // if (mpiRank == 0) {
+    //     utils::generateRandomToFile<3>("test-timer.in", 1000, 5000, 0.01, 42);
+    //     return 0;
+    // }
     
     int n;
     int steps;
@@ -200,8 +207,11 @@ int main(int argc, char** argv) {
 
     if (mpiRank == 0) {
         // Root process reads input, and will broadcast the data.
-        utils::readFromFile("test1.in.out", n, steps, dt, masses, positions, allVelocities);
+        utils::readFromFile("test-timer.in", n, steps, dt, masses, positions, allVelocities);
     } 
+
+    auto tStart = std::chrono::steady_clock::now();
+
 
     MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&steps, 1, MPI_INT, 0, MPI_COMM_WORLD);
@@ -270,12 +280,20 @@ int main(int argc, char** argv) {
                        positions.data(), recvcounts.data(), recvdispls.data(), 
                        MPI_VEC, MPI_COMM_WORLD); 
 
-        if (mpiRank == 0) {
-            // save for testing
-            utils::saveToFile("test1-MPI." + std::to_string(step) + ".out", n, steps, dt,
-                masses, positions, allVelocities, false);
-        }
+        // if (mpiRank == 0) {
+        //     // save for testing
+        //     utils::saveToFile("test1-MPI." + std::to_string(step) + ".out", n, steps, dt,
+        //         masses, positions, allVelocities, false);
+        // }
     }
+
+    auto tEnd = std::chrono::steady_clock::now();
+
+
+    auto duration2 = std::chrono::duration_cast<std::chrono::milliseconds>(tEnd - tStart);
+
+    std::cout << "rank: " << mpiRank << ", Duration in ms: " << duration2.count() << std::endl;
+
 
     allMPIFinalize();
 }

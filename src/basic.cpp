@@ -120,38 +120,46 @@ int main()
             std::cin >> particles[i].vel[d];
     }
 
+    auto tStart = std::chrono::steady_clock::now();
+
     // time loop
     for (int step = 0; step < n_steps; ++step) {
 
-        auto t0 = std::chrono::steady_clock::now();
+        // auto t0 = std::chrono::steady_clock::now();
         compute_forces_basic(particles, forces, DIM);
-        auto t1 = std::chrono::steady_clock::now();
+        // auto t1 = std::chrono::steady_clock::now();
 
-        if (step == 0) {
-            double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
-            std::cout << "Force compute time (ms): " << ms << "\n";
-        }
+        // if (step == 0) {
+        //     double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+        //     std::cout << "Force compute time (ms): " << ms << "\n";
+        // }
 
-        if (step % 200 == 0) {
-        std::cout << "Energy step " << step << ": " << total_energy(particles, DIM) << "\n";
-        }
+        // if (step % 200 == 0) {
+        // std::cout << "Energy step " << step << ": " << total_energy(particles, DIM) << "\n";
+        // }
 
 
         update_particles(particles, forces, DIM, dt);
     }
 
-    // output finale
-    for (int i = 0; i < n; ++i) {
-        std::cout << i << " " << particles[i].mass << " ";
+    auto tEnd = std::chrono::steady_clock::now();
 
-        for (int d = 0; d < DIM; ++d)
-            std::cout << particles[i].pos[d] << " ";
+    auto duration2 = std::chrono::duration_cast<std::chrono::milliseconds>(tEnd - tStart);
 
-        for (int d = 0; d < DIM; ++d)
-            std::cout << particles[i].vel[d] << " ";
+    std::cout << "Duration in ms: " << duration2.count() << std::endl;
 
-        std::cout << "\n";
-    }
+    // // output finale
+    // for (int i = 0; i < n; ++i) {
+    //     std::cout << i << " " << particles[i].mass << " ";
+
+    //     for (int d = 0; d < DIM; ++d)
+    //         std::cout << particles[i].pos[d] << " ";
+
+    //     for (int d = 0; d < DIM; ++d)
+    //         std::cout << particles[i].vel[d] << " ";
+
+    //     std::cout << "\n";
+    // }
 
     return 0;
 }

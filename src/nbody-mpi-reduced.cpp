@@ -7,6 +7,7 @@
 #include <fstream>
 #include <iostream>
 #include <algorithm>
+#include <chrono>
 
 #include "utils.hpp"
 #include "forces/gravity.hpp"
@@ -135,9 +136,10 @@ void runMPIReduced(int argc, char** argv, const forces::force<DIM>& force, bool 
     int mpiSize, mpiRank;
     allMPIInit(&argc, &argv, mpiSize, mpiRank);
 
-    if (mpiRank == 0) {
-        utils::generateRandomToFile<DIM>("test1.in.out", 100, 10, 0.01, 42);
-    }
+
+
+    auto tStart = std::chrono::steady_clock::now();
+
 
     int n;
     int steps;
@@ -152,7 +154,7 @@ void runMPIReduced(int argc, char** argv, const forces::force<DIM>& force, bool 
 
     if (mpiRank == 0) {
         // Root process reads input, and will broadcast the data.
-        utils::readFromFile("test1.in.out", n, steps, dt, masses, allPositions, allVelocities);
+        utils::readFromFile("test-timer.in", n, steps, dt, masses, allPositions, allVelocities);
     } 
 
     MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
@@ -288,11 +290,21 @@ void runMPIReduced(int argc, char** argv, const forces::force<DIM>& force, bool 
             localVelocities[locI] += dt * invM * localForces[locI];
         }
 
-        if (saveEachStep)
-            gatherAndSaveAllPositions(mpiSize, mpiRank, n, steps, dt, localPositions, localVelocities, masses, std::to_string(step));
+        // if (saveEachStep)
+        //     gatherAndSaveAllPositions(mpiSize, mpiRank, n, steps, dt, localPositions, localVelocities, masses, std::to_string(step));
     }
 
-    gatherAndSaveAllPositions(mpiSize, mpiRank, n, steps, dt, localPositions, localVelocities, masses, "final");
+    // gatherAndSaveAllPositions(mpiSize, mpiRank, n, steps, dt, localPositions, localVelocities, masses, "final");
+
+
+
+    auto tEnd = std::chrono::steady_clock::now();
+
+
+    auto duration2 = std::chrono::duration_cast<std::chrono::milliseconds>(tEnd - tStart);
+
+    std::cout << "rank: " << mpiRank << ", Duration in ms: " << duration2.count() << std::endl;
+
 
     free(tmpData);
     allMPIFinalize();
@@ -302,7 +314,7 @@ int main(int argc, char** argv) {
     
     forces::gravity<DIM> gravity{};
     const forces::force<DIM> &force = gravity;
-    bool saveEachStep = true;
+    bool saveEachStep = false;
 
     runMPIReduced(argc, argv, force, saveEachStep);
     // compareOutputsSingleFiles("../build/test1-MPI.999.out", "../build/test-MPI-reduced-final.out");
