@@ -58,8 +58,8 @@ inline void allMPIFinalize() {
 int main(int argc, char** argv) {
     constexpr int outputStride = 1;
 
-    const forces::force<DIM> &force = forces::gravity<DIM>();
-    bodies<DIM> bodies;
+    const forces::force<DIM, EmptyAttributes> &force = forces::gravity<DIM>();
+    bodies<DIM, EmptyAttributes> bodies;
 
     int mpiSize, mpiRank;
     allMPIInit(&argc, &argv, mpiSize, mpiRank);
@@ -92,11 +92,11 @@ int main(int argc, char** argv) {
 
     MPI_Barrier(MPI_COMM_WORLD);
     
-    MPIAccumulator<DIM> accumulator(MPI_VEC, locN, counts, displs, force);
-    // integrators::Euler<DIM> integrator(accumulator);
-    // integrators::Sympletic<DIM> integrator(accumulator);
-    // integrators::Verlet<DIM> integrator(accumulator);
-    integrators::RK4<DIM> integrator(accumulator);
+    MPIAccumulator<DIM, EmptyAttributes> accumulator(MPI_VEC, locN, counts, displs, force);
+    // integrators::Euler<DIM, EmptyAttributes> integrator(accumulator);
+    // integrators::Sympletic<DIM, EmptyAttributes> integrator(accumulator);
+    // integrators::Verlet<DIM, EmptyAttributes> integrator(accumulator);
+    integrators::RK4<DIM, EmptyAttributes> integrator(accumulator);
 
     for (int step = 0; step < steps; step++) {
         integrator.step(bodies, dt);

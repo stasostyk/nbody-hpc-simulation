@@ -12,7 +12,7 @@ namespace utils {
 
 template <int DIM>
 void saveToStream(std::ostream &out, int steps, double dt,
-                  const bodies<DIM>& bodies, bool saveVelocities = true) {
+                  const bodies<DIM, EmptyAttributes>& bodies, bool saveVelocities = true) {
   out << DIM << "\n";
   out << bodies.globalSize() << " " << steps << " " << dt << "\n";
   for (size_t i = 0; i < bodies.globalSize(); i++) {
@@ -29,7 +29,7 @@ void saveToStream(std::ostream &out, int steps, double dt,
 
 template <int DIM>
 void readFromStream(std::istream &in, int &steps, double &dt,
-                    bodies<DIM>& bodies, bool readVelocities = true) {
+                    bodies<DIM, EmptyAttributes>& bodies, bool readVelocities = true) {
   int dimInFile;
   in >> dimInFile;
   assert(dimInFile == DIM);
@@ -53,7 +53,7 @@ void readFromStream(std::istream &in, int &steps, double &dt,
 
 template <int DIM>
 void saveToFile(const std::string &fileName, int steps, double dt,
-                const bodies<DIM>& bodies, bool saveVelocities = true) {
+                const bodies<DIM, EmptyAttributes>& bodies, bool saveVelocities = true) {
   std::ofstream fout(fileName);
 
   saveToStream(fout, steps, dt, bodies, saveVelocities);
@@ -66,7 +66,7 @@ void saveToFile(const std::string &fileName, int steps, double dt,
 
 template <int DIM>
 void readFromFile(const std::string &fileName, int &steps, double &dt,
-                  bodies<DIM>& bodies, bool readVelocities = true) {
+                  bodies<DIM, EmptyAttributes>& bodies, bool readVelocities = true) {
   std::ifstream fin(fileName);
 
   readFromStream(fin, steps, dt, bodies, readVelocities);
@@ -85,7 +85,7 @@ void generateRandomToFile(const std::string &filename, int n = 100,
   constexpr int MIN_MASS = 1;
   constexpr int MAX_MASS = 100;
 
-  bodies<DIM> bodies;
+  bodies<DIM, EmptyAttributes> bodies;
   bodies.resize(n, n, 0);
 
   std::mt19937_64 rng(seed);
@@ -112,7 +112,7 @@ void compareOutputs(const std::string& prefixA = "test1", const std::string& pre
     for (int step = 0; step < steps; step++) {
         int stepsA, stepsB;
         double dtA, dtB;
-        bodies<DIM> bodiesA, bodiesB;
+        bodies<DIM, EmptyAttributes> bodiesA, bodiesB;
 
         std::vector<double> masses_serial, masses_mpi;
         std::vector<Vec<DIM>> positions_serial, positions_mpi;

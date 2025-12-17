@@ -4,10 +4,10 @@
 
 namespace integrators {
 
-template <int DIM> 
+template <int DIM, typename Attributes> 
 class Integrator {
 public:
-  virtual void step(bodies<DIM> &bodies, double dt) = 0;
+  virtual void step(bodies<DIM, Attributes> &bodies, double dt) = 0;
 };
 
 } // namespace integrators

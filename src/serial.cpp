@@ -19,19 +19,19 @@ int main() {
   int n_steps;
   double dt;
 
-  bodies<DIM> bodies;
+  bodies<DIM, EmptyAttributes> bodies;
   utils::readFromStream(std::cin, n_steps, dt, bodies);
 
   forces::gravity<DIM> force;
 #ifdef REDUCED
-  SerialAccumulatorReduced<DIM> accumulator(bodies.localSize(), force);
+  SerialAccumulatorReduced<DIM, EmptyAttributes> accumulator(bodies.localSize(), force);
 #else
-  SerialAccumulator<DIM> accumulator(bodies.localSize(), force);
+  SerialAccumulator accumulator(bodies.localSize(), force);
 #endif
-  // integrators::Euler<DIM> integrator(accumulator);
-  // integrators::Sympletic<DIM> integrator(accumulator);
-  // integrators::Verlet<DIM> integrator(accumulator);
-  integrators::RK4<DIM> integrator(accumulator);
+  // integrators::Euler<DIM, EmptyAttributes> integrator(accumulator);
+  // integrators::Sympletic<DIM, EmptyAttributes> integrator(accumulator);
+  // integrators::Verlet<DIM, EmptyAttributes> integrator(accumulator);
+  integrators::RK4<DIM, EmptyAttributes> integrator(accumulator);
 
   // time loop
   for (int step = 0; step < n_steps; ++step) {

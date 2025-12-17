@@ -12,16 +12,17 @@ namespace integrators {
 // and then takes a weighted average of those slopes
 // this gives very good accuracy for short and medium time simulations
 // but it's not symplectic, so energy can still slowly drift in long runs
-template <int DIM> class RK4 : public Integrator<DIM> {
+template <int DIM, typename Attributes> 
+class RK4 : public Integrator<DIM, Attributes> {
 private:
-  AccelerationAccumulator<DIM>& accelerationAccumulator;
+  AccelerationAccumulator<DIM, Attributes>& accelerationAccumulator;
 
 public:
-  RK4(AccelerationAccumulator<DIM>& accelerationAccumulator)
+  RK4(AccelerationAccumulator<DIM, Attributes>& accelerationAccumulator)
       : accelerationAccumulator(accelerationAccumulator) {}
 
 public:
-  void step(bodies<DIM> &bodies, double dt) override {
+  void step(bodies<DIM, Attributes> &bodies, double dt) override {
 
     size_t n = bodies.localSize();
     // k?_s are the slopes for position (ds/dt = v)

@@ -4,10 +4,11 @@
 #include "forces/func.hpp"
 #include <mpi.h>
 
-template <int DIM> class MPIAccumulator : public AccelerationAccumulator<DIM> {
+template <int DIM, typename Attributes> 
+class MPIAccumulator : public AccelerationAccumulator<DIM, Attributes> {
 private:
   const MPI_Datatype &_MPI_VEC;
-  const forces::force<DIM> &_force;
+  const forces::force<DIM, Attributes> &_force;
   const std::vector<int> &_counts;
   const std::vector<int> &_offsets;
   std::vector<Vec<DIM>> _accelerations;
@@ -16,12 +17,12 @@ public:
   MPIAccumulator(MPI_Datatype &MPI_VEC, int localSize,
                  const std::vector<int> &counts,
                  const std::vector<int> &offsets,
-                 const forces::force<DIM> &force)
+                 const forces::force<DIM, Attributes> &force)
       : _MPI_VEC(MPI_VEC), _force(force), _counts(counts), _offsets(offsets) {
     _accelerations.resize(localSize);
   }
 
-  void compute(bodies<DIM> &bodies) override {
+  void compute(bodies<DIM, Attributes> &bodies) override {
     // All tasks gather all positions (will be required for the next step)
     MPI_Allgatherv(bodies.position.data() + bodies.localOffset(),
                    bodies.localSize(), _MPI_VEC, bodies.position.data(),

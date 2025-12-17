@@ -2,14 +2,16 @@
 
 #include "acceleration-accumulator.hpp"
 #include "forces/func.hpp"
+#include <iostream>
 #include <mpi.h>
 
-template <int DIM>
-class MPIAccumulatorReduced : public AccelerationAccumulator<DIM> {
+template <int DIM, typename Attributes>
+class MPIAccumulatorReduced : public AccelerationAccumulator<DIM, Attributes> {
 private:
   const MPI_Datatype &_MPI_VEC;
-  const forces::force<DIM> &_force;
+  const forces::force<DIM, Attributes> &_force;
   const std::vector<double> &_massesAll;
+  const std::vector<Attributes> &_attributesAll;
   int _mpiSize;
   int _mpiRank;
   std::vector<Vec<DIM>> _accelerations;
@@ -47,9 +49,10 @@ private:
 public:
   MPIAccumulatorReduced(MPI_Datatype &MPI_VEC, int localSize, int mpiSize,
                         int mpiRank, const std::vector<double> &massesAll,
-                        const forces::force<DIM> &force)
+                        const forces::force<DIM, Attributes> &force,
+                        const std::vector<Attributes> &attributesAll)
       : _MPI_VEC(MPI_VEC), _force(force), _massesAll(massesAll),
-        _mpiSize(mpiSize), _mpiRank(mpiRank) {
+        _attributesAll(attributesAll), _mpiSize(mpiSize), _mpiRank(mpiRank) {
     _accelerations.resize(localSize);
 
     tmpData = new Vec<DIM>[3 * localSize];
@@ -63,7 +66,7 @@ public:
 
   ~MPIAccumulatorReduced() { delete[] tmpData; }
 
-  void compute(bodies<DIM> &bodies) override {
+  void compute(bodies<DIM, Attributes> &bodies) override {
     // make forces equal to zero and prepare tmpData
     for (size_t i = 0; i < bodies.localSize(); i++) {
       _accelerations[i] = 0.;
@@ -78,9 +81,9 @@ public:
         int glbJ = _mpiRank + locJ * _mpiSize;
         Vec<DIM> f =
             _force(bodyCopy(bodies.local(locI).pos(), bodies.local(locI).vel(),
-                            _massesAll[glbI]),
+                            _massesAll[glbI], _attributesAll[glbI]),
                    bodyCopy(bodies.local(locJ).pos(), bodies.local(locJ).vel(),
-                            _massesAll[glbJ]));
+                            _massesAll[glbJ], _attributesAll[glbJ]));
 
         _accelerations[locI] += f;
         tmpAccel[locJ] -= f;
@@ -107,10 +110,11 @@ public:
           int locJ = global_to_local(glbJ, _mpiSize);
 
           // glbI < glbJ by construction
-          Vec<DIM> f =
-              _force(bodyCopy(bodies.local(locI).pos(),
-                              bodies.local(locI).vel(), _massesAll[glbI]),
-                     bodyCopy(tmpPos[locJ], tmpVel[locJ], _massesAll[glbJ]));
+          Vec<DIM> f = _force(bodyCopy(bodies.local(locI).pos(),
+                                       bodies.local(locI).vel(),
+                                       _massesAll[glbI], _attributesAll[glbI]),
+                              bodyCopy(tmpPos[locJ], tmpVel[locJ],
+                                       _massesAll[glbJ], _attributesAll[glbJ]));
 
           _accelerations[locI] += f;
           tmpAccel[locJ] -= f;
@@ -128,6 +132,12 @@ public:
 
     // add the tmpForces that were just received
     for (size_t i = 0; i < bodies.localSize(); i++) {
+      // FIXME: For some reason both _accelerations and tmpAccel contain opposite values.
+      // Reproduce using three particles on three processes
+      // Verify using:
+      // std::cout << _accelerations[i][0] << " " << _accelerations[i][1] << " " << _accelerations[i][2] << " " 
+      //    << tmpAccel[i][0] << " " << tmpAccel[i][1] << " " << tmpAccel[i][2] << "\n";
+
       _accelerations[i] += tmpAccel[i];
       for (int j = 0; j < DIM; j++)
         _accelerations[i][j] /= _massesAll[_mpiRank + i * _mpiSize];

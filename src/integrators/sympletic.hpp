@@ -8,16 +8,16 @@ namespace integrators {
 // sympletic euler integrator it's more accurate than basic euler
 // diffrience is that it updates velocity first then position using NEW velocity
 // that's why it's more accurate
-template <int DIM> 
-class Sympletic : public Integrator<DIM> {
+template <int DIM, typename Attributes> 
+class Sympletic : public Integrator<DIM, Attributes> {
 private:
-  AccelerationAccumulator<DIM>& accelerationAccumulator;
+  AccelerationAccumulator<DIM, Attributes>& accelerationAccumulator;
 
 public:
-  Sympletic(AccelerationAccumulator<DIM>& accelerationAccumulator)
+  Sympletic(AccelerationAccumulator<DIM, Attributes>& accelerationAccumulator)
       : accelerationAccumulator(accelerationAccumulator) {}
 
-  void step(bodies<DIM> &bodies, double dt) override {
+  void step(bodies<DIM, Attributes> &bodies, double dt) override {
 
     accelerationAccumulator.compute(bodies);
     size_t n = bodies.localSize();

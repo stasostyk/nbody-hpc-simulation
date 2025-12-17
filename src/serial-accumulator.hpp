@@ -3,18 +3,19 @@
 #include "acceleration-accumulator.hpp"
 #include "forces/func.hpp"
 
-template <int DIM> class SerialAccumulator : public AccelerationAccumulator<DIM> {
+template <int DIM, typename Attributes> 
+class SerialAccumulator : public AccelerationAccumulator<DIM, Attributes> {
 private:
-  const forces::force<DIM> &_force;
+  const forces::force<DIM, Attributes> &_force;
   std::vector<Vec<DIM>> _accelerations;
 
 public:
-  SerialAccumulator(int size, const forces::force<DIM> &force)
+  SerialAccumulator(int size, const forces::force<DIM, Attributes> &force)
       : _force(force) {
     _accelerations.resize(size);
   }
 
-  void compute(bodies<DIM> &bodies) override {
+  void compute(bodies<DIM, Attributes> &bodies) override {
 
     size_t n = bodies.localSize();
 

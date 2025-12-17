@@ -2,6 +2,7 @@
 
 #include "../acceleration-accumulator.hpp"
 #include "integrator.hpp"
+#include <iostream>
 
 namespace integrators {
 
@@ -9,16 +10,16 @@ namespace integrators {
 // easily and overshhot or undershhot aproximations it works by updating the
 // position using OLD velocity (wgy it's not accurate) then updating velocity
 // using acceleration
-template <int DIM> 
-class Euler : public Integrator<DIM> {
+template <int DIM, typename Attributes> 
+class Euler : public Integrator<DIM, Attributes> {
 private:
-  AccelerationAccumulator<DIM>& accelerationAccumulator;
+  AccelerationAccumulator<DIM, Attributes>& accelerationAccumulator;
 
 public:
-  Euler(AccelerationAccumulator<DIM>& accelerationAccumulator)
+  Euler(AccelerationAccumulator<DIM, Attributes>& accelerationAccumulator)
       : accelerationAccumulator(accelerationAccumulator) {}
 
-  void step(bodies<DIM> &bodies, double dt) override {
+  void step(bodies<DIM, Attributes> &bodies, double dt) override {
 
     accelerationAccumulator.compute(bodies);
     size_t n = bodies.localSize();

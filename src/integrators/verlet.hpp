@@ -9,16 +9,16 @@ namespace integrators {
 // it updates velocity in half steps and then use that half step v to compute
 // position update recomputes acceleration using updated positions this way it
 // takes into account the change in acceleration due to position change
-template <int DIM> 
-class Verlet : public Integrator<DIM> {
+template <int DIM, typename Attributes> 
+class Verlet : public Integrator<DIM, Attributes> {
 private:
-  AccelerationAccumulator<DIM>& accelerationAccumulator;
+  AccelerationAccumulator<DIM, Attributes>& accelerationAccumulator;
 
 public:
-  Verlet(AccelerationAccumulator<DIM>& accelerationAccumulator)
+  Verlet(AccelerationAccumulator<DIM, Attributes>& accelerationAccumulator)
       : accelerationAccumulator(accelerationAccumulator) {}
 
-  void step(bodies<DIM> &bodies, double dt) override {
+  void step(bodies<DIM, Attributes> &bodies, double dt) override {
 
     accelerationAccumulator.compute(bodies);
     size_t n = bodies.localSize();
