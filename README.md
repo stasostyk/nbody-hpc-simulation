@@ -56,8 +56,8 @@ The comparison made with generated random file using `utils::generateRandomToFil
 |--------------|----------|
 | **Serial Basic** | 29.152 |
 | **Serial Reduced** | 20.187 |
-| **MPI Basic** | 10.639 |
-| **MPI Reduced** | 3.492 |
+| **MPI Basic** (4 processes) | 10.639 |
+| **MPI Reduced** (4 processes) | 3.492 |
 
 
 ## References
