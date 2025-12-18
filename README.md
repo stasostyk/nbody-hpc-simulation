@@ -1,11 +1,9 @@
-# Integrator
+# Integrators
 
 The integrator advances the system by updating particle **positions and velocities** based on gravitational accelerations.
 Different integrators approximate these variables differently, affecting: - accuracy - stability - energy conservation - computational cost
 
 ---
-
-## Integrators
 
 ### Euler
 Updates position using the old velocity, then updates velocity using the current acceleration. It is the simplest to implement but unstable with strong energy drift.
