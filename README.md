@@ -37,3 +37,29 @@ To configure the build environment only for the visualisation target run
 cmake .. -DBUILD_SIMULATION=OFF -DBUILD_VISUALISATION=ON
 ```
 and then to build the target, simply run `make`.
+
+## MPI implementation
+
+MPI implementation is done for both Basic and Reduced versions, following the algorithms described in the Pacheco book[1].
+
+In the Basic version, the MPI root process (the one with rank 0) scatter the particle information in a blocked distribution. Moreover, the masses and initial positions are broadcasted to each MPI process. At each simulation step, the velocities and positions for local particles are updated, and then each process gathers all new position information using `MPI_Allgatherv`. In short, in the Basic version, after each simulation step, the MPI processes share the new positions with all the other processes.
+
+In the Reduced version, a ringpass algorithm is used. Processes are connected in a ring: process `i` is connected to `i-1` and `i+1` (and largest ranked process is connected to process with rank 0). Initially, the processes know only the particle data for their local particles. At each simulation step, the algorithm performs P-1 phases (where P is the number of MPI processes). At each phase, each MPI process sends data to a lower-ranked neighbor, and receives from a higher-ranked data. With this new data, the process computes all inter-particle forces, and adds to a local force array, while the opposite forces are subtracted from the passing buffer of the forces. Lastly, one more exchange is done and then each process can sum all the forces that they got during this process. 
+
+The Reduced version is faster as it avoids all-to-all gathering at every simulation step.
+
+## Execution time comparison
+
+The comparison made with generated random file using `utils::generateRandomToFile<3>("test-timer.in", 1000, 5000, 0.01, 42);`, i.e. 1000 particles and 5000 steps.
+
+| **Algorithm** | Execution time (seconds) |
+|--------------|----------|
+| **Serial Basic** | 29.152 |
+| **Serial Reduced** | 20.187 |
+| **MPI Basic** (4 processes) | 10.639 |
+| **MPI Reduced** (4 processes) | 3.492 |
+
+
+## References
+
+[1] Chapter 7 of Pacheco Book
