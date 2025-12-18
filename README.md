@@ -38,6 +38,13 @@ cmake .. -DBUILD_SIMULATION=OFF -DBUILD_VISUALISATION=ON
 ```
 and then to build the target, simply run `make`.
 
+## Sequential algorithms
+
+For both the Basic and Reduced sequential algorithms, a **struct** including mass, position, and velocity was defined for the particles to increase data locality. Since the force matrix requires initialization to zero at every iteration, we chose to keep it separate from the struct so that all its elements are stored in contiguous memory cells.
+As the Euler method does not enforce **energy conservation**, a total_energy function was implemented to verify that the system's total energy variation remains negligible. Tests confirmed the model's validity, showing that as dt approaches zero, the energy variation decreases as expected.
+The **computing time** for the Basic version was verified to be significantly higher than the Reduced one. This is due to the Reduced version halving the number of arithmetic operations by exploiting Newton's third law, although both algorithms technically maintain $O(N^2)$ complexity. Both solvers share a similar implementation structure to facilitate performance comparison.
+Extensive **stress tests** were performed in both 2D and 3D to ensure code robustness, including scenarios with high particle counts, star-planet systems, clusters with outliers, near-frontal collisions, small gravitational constants, and extreme mass/speed values. Both solvers handled all cases successfully. Furthermore, comparing the outputs of the two solvers across various inputs consistently showed identical results.
+
 ## MPI implementation
 
 MPI implementation is done for both Basic and Reduced versions, following the algorithms described in the Pacheco book[1].
