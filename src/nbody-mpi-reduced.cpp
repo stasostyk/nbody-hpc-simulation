@@ -84,9 +84,9 @@ void runMPIReduced(int argc, char **argv,
   int mpiSize, mpiRank;
   allMPIInit(&argc, &argv, mpiSize, mpiRank);
 
-  if (mpiRank == 0) {
-    utils::generateRandomToFile<DIM>("test1.in.out", 3, 1000, 0.01, 42);
-  }
+  // if (mpiRank == 0) {
+  //  utils::generateRandomToFile<DIM>("test1.in.out", 3, 1000, 0.01, 42);
+  // }
 
   bodies<DIM, EmptyAttributes> bodies;
 
@@ -158,7 +158,7 @@ void runMPIReduced(int argc, char **argv,
   }
 
   MPIAccumulatorReduced<DIM, EmptyAttributes> accumulator(
-      MPI_VEC, n, mpiSize, mpiRank, masses, force, attributes);
+      MPI_VEC, n / mpiSize, mpiSize, mpiRank, masses, force, attributes);
   // integrators::Euler<DIM, EmptyAttributes> integrator(accumulator);
   // integrators::Sympletic<DIM, EmptyAttributes> integrator(accumulator);
   // integrators::Verlet<DIM, EmptyAttributes> integrator(accumulator);
@@ -198,19 +198,19 @@ void run3Charges(int argc, char **argv, int outputStride) {
 
     bodies.resize(3, 3, 0);
     bodies.local(0).pos()[0] = 1.0; bodies.local(0).pos()[1] = 1.0; bodies.local(0).pos()[2] = 1.0;
-    bodies.local(0).vel()[0] = 0.5; bodies.local(0).vel()[1] = 0.0; bodies.local(0).vel()[2] = 0.0;
+    bodies.local(0).vel()[0] = 0.0; bodies.local(0).vel()[1] = 0.0; bodies.local(0).vel()[2] = 0.0;
     bodies.local(0).mass() = 1.0;
-    bodies.local(0).attributes().charge = 2e-4;
+    bodies.local(0).attributes().charge = 1e-4;
 
     bodies.local(1).pos()[0] = -1.0; bodies.local(1).pos()[1] = -1.0; bodies.local(1).pos()[2] = 1.0;
     bodies.local(1).vel()[0] = 0.0; bodies.local(1).vel()[1] = 0.0; bodies.local(1).vel()[2] = 0.0;
     bodies.local(1).mass() = 1.0;
-    bodies.local(1).attributes().charge = 2e-4;
+    bodies.local(1).attributes().charge = 1e-4;
 
     bodies.local(2).pos()[0] = -1.0; bodies.local(2).pos()[1] = 1.0; bodies.local(2).pos()[2] = 1.0;
     bodies.local(2).vel()[0] = 0.0; bodies.local(2).vel()[1] = 0.0; bodies.local(2).vel()[2] = 0.0;
     bodies.local(2).mass() = 1.0;
-    bodies.local(2).attributes().charge = 2e-4;
+    bodies.local(2).attributes().charge = 1e-4;
 
     masses.resize(bodies.localSize());
     std::copy_n(bodies.mass.begin(), bodies.localSize(), masses.begin());
@@ -274,7 +274,7 @@ void run3Charges(int argc, char **argv, int outputStride) {
 
   forces::coulomb<DIM> coulomb{};
   MPIAccumulatorReduced<DIM, forces::charge> accumulator(
-      MPI_VEC, n, mpiSize, mpiRank, masses, coulomb, attributes);
+      MPI_VEC, n / mpiSize, mpiSize, mpiRank, masses, coulomb, attributes);
   integrators::Euler<DIM, forces::charge> integrator(accumulator);
   // integrators::Sympletic<DIM, forces::charge> integrator(accumulator);
   // integrators::Verlet<DIM, forces::charge> integrator(accumulator);

@@ -13,7 +13,7 @@
 #include <cmath>
 #include <iostream>
 
-constexpr int DIM = 2;
+constexpr int DIM = 3;
 
 int main() {
   int n_steps;

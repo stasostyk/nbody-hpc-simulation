@@ -2,8 +2,8 @@
 
 #include "acceleration-accumulator.hpp"
 #include "forces/func.hpp"
-#include <iostream>
 #include <mpi.h>
+#include <optional>
 
 template <int DIM, typename Attributes>
 class MPIAccumulatorReduced : public AccelerationAccumulator<DIM, Attributes> {
@@ -37,13 +37,13 @@ private:
    *
    * this assumes n%mpiSize == 0
    */
-  int first_index_gt(int glb_part1, int owner, int comm_sz, int n) {
-    int glb = owner;
+  std::optional<size_t> first_index_gt(size_t glb_part1, int owner, int comm_sz, size_t n) {
+    size_t glb = owner;
     if (glb <= glb_part1) {
       int k = (glb_part1 - owner) / comm_sz + 1;
       glb = owner + k * comm_sz;
     }
-    return (glb < n) ? glb : -1;
+    return (glb < n) ? std::make_optional(glb) : std::nullopt;
   }
 
 public:
@@ -71,6 +71,7 @@ public:
     for (size_t i = 0; i < bodies.localSize(); i++) {
       _accelerations[i] = 0.;
       tmpPos[i] = bodies.local(i).pos();
+      tmpVel[i] = bodies.local(i).vel();
       tmpAccel[i] = 0.;
     }
 
@@ -103,25 +104,25 @@ public:
       for (size_t locI = 0, glbI = _mpiRank; locI < bodies.localSize();
            locI++, glbI += _mpiSize) {
         // find first global index > glbI that belongs to owner
-        int glbJ = first_index_gt(glbI, owner, _mpiSize, _massesAll.size());
+        if (auto glbJopt = first_index_gt(glbI, owner, _mpiSize, _massesAll.size())) {
+            size_t glbJ = glbJopt.value();
+            while (glbJ < glbI + _mpiSize && glbJ < _massesAll.size()) {
+              int locJ = global_to_local(glbJ, _mpiSize);
 
-        while (glbJ != -1 && glbJ < glbI + _mpiSize &&
-               glbJ < _massesAll.size()) {
-          int locJ = global_to_local(glbJ, _mpiSize);
+              // glbI < glbJ by construction
+              Vec<DIM> f = _force(bodyCopy(bodies.local(locI).pos(),
+                                           bodies.local(locI).vel(),
+                                           _massesAll[glbI], _attributesAll[glbI]),
+                                  bodyCopy(tmpPos[locJ], tmpVel[locJ],
+                                           _massesAll[glbJ], _attributesAll[glbJ]));
 
-          // glbI < glbJ by construction
-          Vec<DIM> f = _force(bodyCopy(bodies.local(locI).pos(),
-                                       bodies.local(locI).vel(),
-                                       _massesAll[glbI], _attributesAll[glbI]),
-                              bodyCopy(tmpPos[locJ], tmpVel[locJ],
-                                       _massesAll[glbJ], _attributesAll[glbJ]));
+              _accelerations[locI] += f;
+              tmpAccel[locJ] -= f;
 
-          _accelerations[locI] += f;
-          tmpAccel[locJ] -= f;
-
-          glbJ += _mpiSize;
-          if (glbJ >= _massesAll.size())
-            break;
+              glbJ += _mpiSize;
+              if (glbJ >= _massesAll.size())
+                break;
+            }
         }
       }
     }
@@ -132,12 +133,6 @@ public:
 
     // add the tmpForces that were just received
     for (size_t i = 0; i < bodies.localSize(); i++) {
-      // FIXME: For some reason both _accelerations and tmpAccel contain opposite values.
-      // Reproduce using three particles on three processes
-      // Verify using:
-      // std::cout << _accelerations[i][0] << " " << _accelerations[i][1] << " " << _accelerations[i][2] << " " 
-      //    << tmpAccel[i][0] << " " << tmpAccel[i][1] << " " << tmpAccel[i][2] << "\n";
-
       _accelerations[i] += tmpAccel[i];
       for (int j = 0; j < DIM; j++)
         _accelerations[i][j] /= _massesAll[_mpiRank + i * _mpiSize];

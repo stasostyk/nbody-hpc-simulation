@@ -2,7 +2,6 @@
 #include <assert.h>
 #include <vector>
 #include <cmath>
-#include <iostream>
 
 #include "acceleration-accumulator.hpp"
 #include "body.hpp"
@@ -15,7 +14,7 @@
 #include "mpi-accumulator.hpp"
 #include "utils.hpp"
 
-constexpr int DIM = 2;
+constexpr int DIM = 3;
 
 static MPI_Datatype MPI_VEC;
 
