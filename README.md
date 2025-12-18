@@ -1,7 +1,7 @@
 # Integrators
 
 The integrator advances the system by updating particle **positions and velocities** based on gravitational accelerations.
-Different integrators approximate these variables differently, affecting: - accuracy - stability - energy conservation - computational cost
+Different integrators approximate these variables differently, affecting accuracy, stability, energy conservation, and computational cost.
 
 ---
 
