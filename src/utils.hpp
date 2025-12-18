@@ -72,6 +72,9 @@ void readFromFile(const std::string &fileName, int &n, int &steps, double &dt,
                   std::vector<double> &m, std::vector<Vec<DIM>> &p,
                   std::vector<Vec<DIM>> &v, bool readVelocities = true) {
   std::ifstream fin(fileName);
+  if (!fin.is_open()) {
+    throw std::runtime_error("File not found: " + fileName + ". Ensure that it exists then try again.");
+  }
 
   readFromStream(fin, n, steps, dt, m, p, v, readVelocities);
 
