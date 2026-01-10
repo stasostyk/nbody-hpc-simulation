@@ -1,5 +1,7 @@
 # NBody
-N Body problem
+### What is an NBody Problem?
+
+It refers to the challenge of predicting the motion of bodies over time and how how N bodies interact with each other beccause of influence of their forces such as gravity. It's highly complex compared to a 2 body problem due to the fact that each object is simultenliously affected by all the others which leads to a choatic behaviour.
 
 This project contains multiple implementations of the N-body problem for comparison between serial, parallel, and reduced versions of the algorithm. 
 
@@ -115,13 +117,168 @@ It's usually the default integrator** for N-body simulations.
 ### Runge–Kutta 4 (RK4)
 Uses four slope evaluations per timestep to achieve high accuracy. Very accurate short-term but not symplectic and more expensive.
 
+#### Stage 1
 $$
-k_1, k_2, k_3, k_4 \Rightarrow \text{4th-order update}
+\mathbf{k}_1^{x} = \mathbf{v}^n
 $$
+$$
+\mathbf{k}_1^{v} = \mathbf{a}(\mathbf{x}^n)
+$$
+
+#### Stage 2
+$$
+\mathbf{k}_2^{x} = \mathbf{v}^n + \frac{\Delta t}{2} \mathbf{k}_1^{v}
+$$
+$$
+\mathbf{k}_2^{v} = \mathbf{a}\left(\mathbf{x}^n + \frac{\Delta t}{2} \mathbf{k}_1^{x}\right)
+$$
+
+#### Stage 3
+$$
+\mathbf{k}_3^{x} = \mathbf{v}^n + \frac{\Delta t}{2} \mathbf{k}_2^{v}
+$$
+$$
+\mathbf{k}_3^{v} = \mathbf{a}\left(\mathbf{x}^n + \frac{\Delta t}{2} \mathbf{k}_2^{x}\right)
+$$
+
+#### Stage 4
+$$
+\mathbf{k}_4^{x} = \mathbf{v}^n + \Delta t \, \mathbf{k}_3^{v}
+$$
+$$
+\mathbf{k}_4^{v} = \mathbf{a}\left(\mathbf{x}^n + \Delta t \, \mathbf{k}_3^{x}\right)
+$$
+
+---
+
+### Final Update
+
+The position and velocity are updated as follows:
+
+$$\mathbf{x}^{n+1}=\mathbf{x}^{n}+\frac{\Delta t}{6}\left(\mathbf{k}_1^{x}+2\mathbf{k}_2^{x}+2\mathbf{k}_3^{x}+\mathbf{k}_4^{x}\right)$$
+
+
+$$\mathbf{v}^{n+1}=\mathbf{v}^{n}+\frac{\Delta t}{6}\left(\mathbf{k}_1^{v}+2\mathbf{k}_2^{v}+2\mathbf{k}_3^{v}+\mathbf{k}_4^{v}\right)$$
 
 
 It's best performance is for short runs and validation because of its high accuracy.
 
+## Integration challenges
+
+### Abstraction of the particle type
+   Position, velocity, and mass are always needed. Other information can optionally be passed via `Attributes`.
+   ```c++
+   template <int DIM, typename Attributes> 
+   struct body {
+   public:
+     virtual Vec<DIM> &pos() = 0;
+     virtual const Vec<DIM> &pos() const = 0;
+     virtual Vec<DIM> &vel() = 0;
+     virtual const Vec<DIM> &vel() const = 0;
+     virtual double &mass() = 0;
+     virtual const double &mass() const = 0;
+     virtual Attributes &attributes() = 0;
+     virtual const Attributes &attributes() const = 0;
+   };
+   ```
+
+### Abstraction of the force expression
+   ```c++
+   template <int DIM, typename Attributes> 
+   struct force {
+   public:
+     virtual Vec<DIM> operator()(const body<DIM, Attributes> &subjectBody,
+                                 const body<DIM, Attributes> &exertingBody) const = 0;
+   };
+   ```
+   An example of the force between charged particles described by Coulomb's law
+   ```c++
+   struct charge {
+     double charge;
+   };
+
+   template <int DIM> struct coulomb : public force<DIM, charge> {
+
+   public:
+     static constexpr double k = 8.987551785972e9;
+
+     Vec<DIM> operator()(const body<DIM, charge> &subjectBody,
+                         const body<DIM, charge> &exertingBody) const override {
+       ...
+       double coeff = -k * subjectBody.attributes().charge *
+                    exertingBody.attributes().charge /
+                    (dist2 * std::sqrt(dist2));
+       ...
+     }
+   };
+   ```
+
+### Access to a collection of bodies
+
+   *Problem*: Sequential algorithms use AoS, while parallel algorithms use SoA.
+   
+   *Solution*: Store bodies as SoA, view as AoS.
+   
+   ```c++
+   template <int DIM, typename Attributes = EmptyAttributes> 
+   struct bodies {
+   public:
+     std::vector<Vec<DIM>> position;
+     std::vector<Vec<DIM>> velocity;
+     std::vector<double> mass;
+     std::vector<Attributes> attributes;
+     
+     void resize(int globalSize, int localSize, int localOffset) {
+       ...
+       _views.clear();
+       for (int i = 0; i < globalSize; i++) {
+         _views.push_back(bodyView<DIM, Attributes>(*this, i));
+       }
+     }
+
+     body<DIM, Attributes> &global(int index) { return _views[index]; }
+     const body<DIM, Attributes> &global(int index) const { return _views[index]; }
+     body<DIM, Attributes> &local(int index) { return _views[_localOffset + index]; }
+     const body<DIM, Attributes> &local(int index) const { return _views[_localOffset + index]; }
+   }
+   ```
+
+   ```c++
+   template <int DIM, typename Attributes> 
+   struct bodyView : public body<DIM, Attributes> {
+   private:
+     bodies<DIM, Attributes> &_bodies;
+
+   public:
+     bodyView(bodies<DIM, Attributes> &bodies, int index) : _bodies(bodies), index(index) {}
+     const int index;
+     ...
+   };
+   ```
+
+### Reusability of integrators
+
+  *Problem*: Some integrators (e.g. RK4) perform additional substeps that require a recomputation of all forces.
+  
+  *Solution*: Decouple the computation of accelerations from the update rule.
+  
+  Each version of the force computation algorithm implements its own `AccelerationAccumulator`.
+  ```c++
+  class AccelerationAccumulator {
+  public:
+    virtual void compute(bodies<DIM, Attributes> &bodies) = 0;
+    virtual const Vec<DIM>& accel(int bodyIndex) const = 0;
+  };
+  ```
+
+  Each `AccelerationAccumulator` is aggregated into an `Integrator` and used inside its `step` method.
+  ```c++
+  template <int DIM, typename Attributes> 
+  class Integrator {
+  public:
+    virtual void step(bodies<DIM, Attributes> &bodies, double dt) = 0;
+  };
+  ```
 
 ## References
 
