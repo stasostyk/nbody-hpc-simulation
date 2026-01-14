@@ -23,12 +23,14 @@ public:
     GLuint VAO, VBO, EBO;
     GLsizei indexCount;
 
-    Particle(glm::vec3 pos, glm::vec3 col, float r)
-        : position(pos), color(col), VAO(0), VBO(0), EBO(0), indexCount(0), radius(r) {}
+    GLuint traceVAO, traceVBO;
 
-    void init();
-    void draw(Shader& shader);
-    void drawTrace(Shader& shader);
+    Particle(glm::vec3 pos, glm::vec3 col, float r)
+        : position(pos), color(col), VAO(0), VBO(0), EBO(0), indexCount(0), radius(r) {
+        }
+
+    void draw(Shader& shader, float scale);
+
 };
 
 #endif
