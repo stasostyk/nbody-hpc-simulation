@@ -32,9 +32,7 @@ void Camera::updateCamera() {
     glm::vec3 camTarget = glm::vec3(0.0f, 0.0f, 0.0f);
     glm::vec3 camUp = glm::vec3(0.0f, 1.0f, 0.0f);
 
-    glm::mat4 view = glm::lookAt(camPos, camTarget, camUp);
+    view = glm::lookAt(camPos, camTarget, camUp);
     float aspect = (windowHeight == 0) ? 1.0f : (float)windowWidth / (float)windowHeight;
-    glm::mat4 projection = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 2000.0f);
-    shader.setMat4("view", view);
-    shader.setMat4("projection", projection);
+    projection = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 2000.0f);
 }

@@ -11,19 +11,21 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include "shaders/shader.hpp"
-#include "particle/Particle.hpp"
 
 #include "imgui.h"
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_opengl3.h"
 
 #include "../utils.hpp"
-#include "Camera.hpp"
+#include "renderBufferObjects/ParticleBufferObject.hpp"
+#include "renderBufferObjects/TraceBufferObject.hpp"
+#include "camera/Camera.hpp"
 
 constexpr int DIM = 3;
-const int NUM_FILES = 100;
+const int NUM_FILES = 99;
 constexpr int WINDOW_HEIGHT = 600;
 constexpr int WINDOW_WIDTH = 900;
+
 
 void processKeyboardInputs(GLFWwindow* window, float deltaTime, Camera& camera) {
     float yawDiff = 0, pitchDiff = 0;
@@ -46,63 +48,27 @@ void processKeyboardInputs(GLFWwindow* window, float deltaTime, Camera& camera) 
     camera.rotateCamera(pitchDiff, yawDiff);
 }
 
-void updateParticles(int index, std::vector<Particle>& particles, std::vector<glm::vec3>& combinedTraces) {
+glm::vec3 particlePositionVec(Vec<DIM>& position) {
+    return glm::vec3(position[0], position[1], DIM==3?position[2]:0.0f);
+}
+
+void updateParticles(int index, std::vector<Vec<DIM>>& positions, std::vector<glm::vec3>& combinedTraces) {
     int n;
     int steps;
     double dt;
     std::vector<double> masses;
-    std::vector<Vec<DIM>> positions;
     std::vector<Vec<DIM>> velocities;
     std::vector<Vec<DIM>> forces;
     utils::readFromFile("../build/test1-MPI."+std::to_string(index)+".out", n, steps, dt, masses, positions, velocities);
+    // utils::readFromFile("../build/test-MPI-reduced-"+std::to_string(index)+".out", n, steps, dt, masses, positions, velocities);
     
 
     for (int i = 0; i < n; i++) {;
-        particles[i].position = glm::vec3(positions[i][0], positions[i][1], DIM==2 ? 0.0f : positions[i][2]);
         if (combinedTraces.size() < n*(NUM_FILES-1)) {
-            combinedTraces.push_back(particles[i].position);
+            combinedTraces.push_back(particlePositionVec(positions[i]));
             if (combinedTraces.size() > 10*n) {
                 combinedTraces.erase(combinedTraces.begin(), combinedTraces.begin()+n);
             }
-        }
-    }
-}
-
-
-void createSphere(std::vector<float>& vertices,
-                  std::vector<unsigned int>& indices,
-                  unsigned int X_SEGMENTS,
-                  unsigned int Y_SEGMENTS)
-{
-    vertices.clear();
-    indices.clear();
-
-    for (unsigned int y = 0; y <= Y_SEGMENTS; ++y) {
-        for (unsigned int x = 0; x <= X_SEGMENTS; ++x) {
-            float xSegment = (float)x / (float)X_SEGMENTS;
-            float ySegment = (float)y / (float)Y_SEGMENTS;
-            float xPos = std::cos(xSegment * 2.0f * M_PI) * std::sin(ySegment * M_PI);
-            float yPos = std::cos(ySegment * M_PI);
-            float zPos = std::sin(xSegment * 2.0f * M_PI) * std::sin(ySegment * M_PI);
-
-            vertices.push_back(xPos);
-            vertices.push_back(yPos);
-            vertices.push_back(zPos);
-        }
-    }
-
-    for (unsigned int y = 0; y < Y_SEGMENTS; ++y) {
-        for (unsigned int x = 0; x < X_SEGMENTS; ++x) {
-            unsigned int i0 = y * (X_SEGMENTS + 1) + x;
-            unsigned int i1 = (y + 1) * (X_SEGMENTS + 1) + x;
-
-            indices.push_back(i0);
-            indices.push_back(i1);
-            indices.push_back(i0 + 1);
-
-            indices.push_back(i0 + 1);
-            indices.push_back(i1);
-            indices.push_back(i1 + 1);
         }
     }
 }
@@ -147,8 +113,9 @@ int main() {
     
 
     // scene setup
-    Shader shader("./shaders/basic.vert", "./shaders/basic.frag");
-    Camera camera(400.0f, shader, WINDOW_WIDTH, WINDOW_HEIGHT);
+    Shader basicShader("./shaders/basic.vert", "./shaders/basic.frag");
+    Shader particleShader("./shaders/particle.vert", "./shaders/particle.frag");
+    Camera camera(400.0f, basicShader, WINDOW_WIDTH, WINDOW_HEIGHT);
     
 
     // particle setup
@@ -156,7 +123,6 @@ int main() {
     int n;
     int steps;
     double dt;
-    std::vector<Particle> particles;
     std::vector<glm::vec3> combinedTraces; // all combined to improve performance
     std::vector<double> masses;
     std::vector<Vec<DIM>> positions;
@@ -164,115 +130,80 @@ int main() {
     std::vector<Vec<DIM>> forces;
     
     utils::readFromFile("../build/test1-MPI.0.out", n, steps, dt, masses, positions, velocities);
-    particles.reserve(n);
+    // utils::readFromFile("../build/test-MPI-reduced-0.out", n, steps, dt, masses, positions, velocities);
 
     // Set up render objects for particles
-    GLuint VAO, VBO, EBO;
-    GLsizei indexCount;
-    std::vector<float> sphereVerts;
-    std::vector<unsigned int> sphereInds;
-    createSphere(sphereVerts, sphereInds, 8, 8);
-    indexCount = (GLsizei)sphereInds.size();
-
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
-    glGenBuffers(1, &EBO);
-
-    glBindVertexArray(VAO);
-
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER,
-                 sphereVerts.size() * sizeof(float),
-                 sphereVerts.data(),
-                 GL_STATIC_DRAW);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-                 sphereInds.size() * sizeof(unsigned int),
-                 sphereInds.data(),
-                 GL_STATIC_DRAW);
-
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    glBindVertexArray(0);
+    ParticleBufferObject particleBufferObject;
+    particleBufferObject.initialize(n);
 
     // Set up render objects for traces
-    GLuint traceVAO, traceVBO;
-    glGenVertexArrays(1, &traceVAO);
-    glGenBuffers(1, &traceVBO);
-
-    glBindVertexArray(traceVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, traceVBO);
-
-    glBufferData(
-        GL_ARRAY_BUFFER,
-        NUM_FILES * n * sizeof(glm::vec3),
-        nullptr,
-        GL_DYNAMIC_DRAW
-    );
-
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), 0);
-    glEnableVertexAttribArray(0);
-
-    // initialize all particles
-    for (int i = 0; i < n; i++) {
-        particles.emplace_back(Particle(
-            glm::vec3(positions[i][0], positions[i][1], DIM==2 ? 0.0f : positions[i][2]), 
-            glm::vec3(i*1.0f/n, 0.0f, 1.0f), 
-            masses[i]/20.0f));
-        particles[i].VAO = VAO;
-        particles[i].VBO = VBO;
-        particles[i].EBO = EBO;
-        particles[i].indexCount = indexCount;
-    }
+    TraceBufferObject traceBufferObject;
+    traceBufferObject.initialize(n);
     
+    // force rendering to take depth into account
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
     
-    // control simulation speed when playing it
+    // mainloop variables
     double prevSimFrameTime = glfwGetTime(); // last time we update simulation timestep
     double prevLoopTime = glfwGetTime(); // last time opengl drew onto screen (mainloop)
     bool playSim = false;
     bool disableTrace = false;
     float scale = 1.0;
     float zoom = 1.0;
+    
     // main render loop
     while (!glfwWindowShouldClose(window)) {
         double time = glfwGetTime();
         processKeyboardInputs(window,time-prevLoopTime, camera);
 
-        if (playSim && time - prevSimFrameTime > dt) { // slowdown factor of 10
+        // Load new simulation timestep if dt time has passed
+        if (playSim && time - prevSimFrameTime > dt) {
             prevSimFrameTime = time;
             currentParticleSet = (currentParticleSet + 1) % NUM_FILES;
-            updateParticles(currentParticleSet, particles, combinedTraces);
+            updateParticles(currentParticleSet, positions, combinedTraces);
         }
         
+        // Reset each frame
         glClearColor(0.05f, 0.05f, 0.08f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         
-        shader.use();
+        // Camera set up
+        basicShader.use();
+        basicShader.setMat4("view", camera.view);
+        basicShader.setMat4("projection", camera.projection);
+        particleShader.use();
+        particleShader.setMat4("view", camera.view);
+        particleShader.setMat4("projection", camera.projection);
         
         
-        // draw particles and trace
-        for (Particle& p : particles) {
-            p.draw(shader, scale);
+        // Draw particles using parallel instancing
+        std::vector<ParticleBufferObject::ParticleInstanceData> instances;
+        instances.reserve(n);
+
+        for (int i = 0; i < n; i++)
+        {
+            glm::mat4 model(1.0f);
+            model = glm::translate(model, particlePositionVec(positions[i]));
+            float radius = scale * masses[i] / 20.0f;
+            model = glm::scale(model, glm::vec3(radius));
+            glm::vec3 color(i*1.0f/n, 0.0f, 1.0f); 
+
+            instances.push_back({ model, color });
         }
-        
+
+        particleBufferObject.loadNewData(instances);
+        particleBufferObject.draw(instances.size());
+
+
+        // Draw trace using parallel instancing
         if (!disableTrace) {
+            basicShader.use();
             glm::mat4 model = glm::mat4(1.0f);
-            shader.setMat4("model", model);
-            shader.setVec3("color", glm::vec3(1.0f, 1.0f, 1.0f));
-            int traceCount = combinedTraces.size();
-            glBindBuffer(GL_ARRAY_BUFFER, traceVBO);
-            glBufferSubData(
-                GL_ARRAY_BUFFER,
-                0,
-                traceCount * sizeof(glm::vec3),
-                combinedTraces.data()
-            );
-            glBindVertexArray(traceVAO);
-            glDrawArrays(GL_POINTS, 0, combinedTraces.size());
+            basicShader.setMat4("model", model);
+            basicShader.setVec3("color", glm::vec3(1.0f, 1.0f, 1.0f));
+            traceBufferObject.loadNewData(combinedTraces);
+            traceBufferObject.draw(combinedTraces.size());
         }
         
         
@@ -287,7 +218,7 @@ int main() {
         ImGui::Text("Time Settings");
         if (ImGui::Button("Next Timestep")) {
             currentParticleSet = (currentParticleSet + 1) % NUM_FILES;
-            updateParticles(currentParticleSet, particles, combinedTraces);
+            updateParticles(currentParticleSet, positions, combinedTraces);
         }
         
         ImGui::Checkbox("Loop Simulation", &playSim);
