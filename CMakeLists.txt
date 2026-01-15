@@ -40,7 +40,8 @@ if(BUILD_VISUALISATION)
     file(GLOB SOURCES_VISUALISATION
         ${CMAKE_SOURCE_DIR}/src/vis/*.cpp
         ${CMAKE_SOURCE_DIR}/src/vis/shaders/*.cpp
-        ${CMAKE_SOURCE_DIR}/src/vis/particle/*.cpp
+        ${CMAKE_SOURCE_DIR}/src/vis/renderBufferObjects/*.cpp
+        ${CMAKE_SOURCE_DIR}/src/vis/camera/*.cpp
     )
 
     add_executable(nbody_visualisation ${SOURCES_VISUALISATION})
