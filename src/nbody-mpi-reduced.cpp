@@ -12,6 +12,7 @@
 #include "forces/gravity.hpp"
 
 constexpr int DIM = 3; // dimensions of the problem (2D or 3D)
+constexpr double EPS = 1e-3;
 
 static MPI_Datatype MPI_VEC;
 
@@ -41,20 +42,20 @@ inline void compareOutputsSingleFiles(std::string filename_serial, std::string f
     double e = 1e-2;
 
     int n_serial, n_mpi;
-    int steps_serial, steps_mpi;
-    double dt_serial, dt_mpi;
+    double total_time_serial, total_time_mpi;
+    double dt_max_serial, dt_max_mpi;
 
     std::vector<double> masses_serial, masses_mpi;
     std::vector<Vec<DIM>> positions_serial, positions_mpi;
 
-    utils::readFromFile(filename_serial, n_serial, steps_serial, dt_serial, 
+    utils::readFromFile(filename_serial, n_serial, total_time_serial, dt_max_serial, 
                     masses_serial, positions_serial, positions_serial, false);
-    utils::readFromFile(filename_mpi, n_mpi, steps_mpi, dt_mpi, 
+    utils::readFromFile(filename_mpi, n_mpi, total_time_mpi, dt_max_mpi, 
                     masses_mpi, positions_mpi, positions_mpi, false);
 
-    assert(steps_mpi == steps_serial);
     assert(n_mpi == n_serial);
-    assert(fabs(dt_mpi - dt_serial) < e);
+    assert(fabs(total_time_mpi - total_time_serial) < e);
+    assert(fabs(dt_max_mpi - dt_max_serial) < e);
     
     for (int i = 0; i < n_mpi; i++) {
         assert(fabs(masses_mpi[i]- masses_serial[i]) < e);
@@ -95,7 +96,58 @@ int first_index_gt(int glb_part1, int owner, int comm_sz, int n) {
     return (glb < n) ? glb : -1;
 }
 
-void gatherAndSaveAllPositions(int mpiSize, int mpiRank, int n, int steps, double dt,
+double critical_timestep(double mass, const Vec<DIM> &vel, const Vec<DIM> &force, double dt_max) {
+    double acc_norm_sq = 0.0;
+    double vel_norm_sq = 0.0;
+    for (int d = 0; d < DIM; ++d) {
+        double acc = force[d] / mass;
+        acc_norm_sq += acc * acc;
+        vel_norm_sq += vel[d] * vel[d];
+    }
+
+    double acc_norm = std::sqrt(acc_norm_sq);
+    double vel_norm = std::sqrt(vel_norm_sq);
+
+    double acc_limit = acc_norm > 0.0 ? std::sqrt(EPS / acc_norm) : dt_max;
+    double vel_limit = vel_norm > 0.0 ? EPS / vel_norm : dt_max;
+
+    double dt_crit = std::min({dt_max, acc_limit, vel_limit});
+    const double min_dt = dt_max * 1e-6;
+    return std::max(dt_crit, min_dt);
+}
+
+double update_timesteps(const std::vector<Vec<DIM>> &local_vel,
+                        const std::vector<Vec<DIM>> &local_forces,
+                        const std::vector<double> &masses,
+                        int mpiRank,
+                        int mpiSize,
+                        double dt_max,
+                        std::vector<double> &particle_dt) {
+    const double min_dt = dt_max * 1e-6;
+    double next_dt = dt_max;
+
+    for (size_t locI = 0; locI < local_vel.size(); ++locI) {
+        int glbI = mpiRank + static_cast<int>(locI) * mpiSize;
+        double dt_crit = critical_timestep(masses[glbI], local_vel[locI], local_forces[locI], dt_max);
+        double candidate = particle_dt[locI];
+
+        if (candidate > dt_crit) {
+            while (candidate > dt_crit) {
+                candidate *= 0.5;
+            }
+        } else if (candidate < 0.5 * dt_crit) {
+            candidate = std::min(candidate * 2.0, dt_max);
+        }
+
+        candidate = std::clamp(candidate, min_dt, dt_max);
+        particle_dt[locI] = candidate;
+        next_dt = std::min(next_dt, candidate);
+    }
+
+    return next_dt;
+}
+
+void gatherAndSaveAllPositions(int mpiSize, int mpiRank, int n, double total_time, double dt_max,
                                 const std::vector<Vec<DIM>> &localPositions,
                                 const std::vector<Vec<DIM>> &localVelocities,
                                 const std::vector<double> &masses,
@@ -127,7 +179,7 @@ void gatherAndSaveAllPositions(int mpiSize, int mpiRank, int n, int steps, doubl
             }
         }
 
-        utils::saveToFile("test-MPI-reduced-" + filetag + ".out", n, steps, dt, masses, finalPositions, finalVelocities, false);
+        utils::saveToFile("test-MPI-reduced-" + filetag + ".out", n, total_time, dt_max, masses, finalPositions, finalVelocities, false);
     }
 }
 
@@ -140,8 +192,8 @@ void runMPIReduced(int argc, char** argv, const forces::force<DIM>& force, bool 
     }
 
     int n;
-    int steps;
-    double dt;
+    double total_time;
+    double dt_max;
 
     std::vector<double> masses;
     std::vector<Vec<DIM>> allPositions;
@@ -152,12 +204,12 @@ void runMPIReduced(int argc, char** argv, const forces::force<DIM>& force, bool 
 
     if (mpiRank == 0) {
         // Root process reads input, and will broadcast the data.
-        utils::readFromFile("test1.in.out", n, steps, dt, masses, allPositions, allVelocities);
+        utils::readFromFile("test1.in.out", n, total_time, dt_max, masses, allPositions, allVelocities);
     } 
 
     MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
-    MPI_Bcast(&steps, 1, MPI_INT, 0, MPI_COMM_WORLD);
-    MPI_Bcast(&dt, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&total_time, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&dt_max, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     // std::cout << " RANK r=" << mpiRank << "   is here 1" << std::endl;
 
     // assert(n % mpiSize == 0); /// TODO later remove
@@ -177,6 +229,7 @@ void runMPIReduced(int argc, char** argv, const forces::force<DIM>& force, bool 
     localPositions.resize(locN);
     localVelocities.resize(locN);
     localForces.resize(locN);
+    std::vector<double> particle_dt(locN, dt_max);
 
     MPI_Bcast(masses.data(), n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
@@ -212,7 +265,10 @@ void runMPIReduced(int argc, char** argv, const forces::force<DIM>& force, bool 
     int source = (mpiRank + 1) % mpiSize;
     int dest = (mpiRank - 1 + mpiSize) % mpiSize;
 
-    for (int step = 0; step < steps; step++) {
+    double time = 0.0;
+    int step = 0;
+
+    while (time < total_time) {
         // make forces equal to zero and prepare tmpData
         for (int i = 0; i < locN; i++) {
             localForces[i] = 0.;
@@ -281,6 +337,15 @@ void runMPIReduced(int argc, char** argv, const forces::force<DIM>& force, bool 
             localForces[i] += tmpForces[i];
         }
 
+        double local_next_dt = update_timesteps(localVelocities, localForces, masses, mpiRank, mpiSize, dt_max, particle_dt);
+        double next_dt = dt_max;
+        MPI_Allreduce(&local_next_dt, &next_dt, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+
+        double dt = std::min(next_dt, total_time - time);
+        if (dt <= 0.0) {
+            break;
+        }
+
         // update velocities and positions (Euler)
         for (int locI = 0, glbI = mpiRank; locI < locN; locI++, glbI += mpiSize) {
             double invM = 1. / masses[glbI];
@@ -289,10 +354,13 @@ void runMPIReduced(int argc, char** argv, const forces::force<DIM>& force, bool 
         }
 
         if (saveEachStep)
-            gatherAndSaveAllPositions(mpiSize, mpiRank, n, steps, dt, localPositions, localVelocities, masses, std::to_string(step));
+            gatherAndSaveAllPositions(mpiSize, mpiRank, n, total_time, dt_max, localPositions, localVelocities, masses, std::to_string(step));
+
+        time += dt;
+        ++step;
     }
 
-    gatherAndSaveAllPositions(mpiSize, mpiRank, n, steps, dt, localPositions, localVelocities, masses, "final");
+    gatherAndSaveAllPositions(mpiSize, mpiRank, n, total_time, dt_max, localPositions, localVelocities, masses, "final");
 
     free(tmpData);
     allMPIFinalize();

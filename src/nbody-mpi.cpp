@@ -2,12 +2,14 @@
 #include <assert.h>
 #include <vector>
 #include <cmath>
+#include <algorithm>
 #include <iostream>
 
 #include "forces/gravity.hpp"
 #include "utils.hpp"
 
 constexpr int DIM = 2;
+constexpr double EPS = 1e-3;
 
 static MPI_Datatype MPI_VEC;
 
@@ -63,6 +65,56 @@ void make_counts_displs(int N, int comm_sz, std::vector<int> &counts, std::vecto
     }
 }
 
+double critical_timestep(double mass, const Vec<DIM> &vel, const Vec<DIM> &force, double dt_max) {
+    double acc_norm_sq = 0.0;
+    double vel_norm_sq = 0.0;
+    for (int d = 0; d < DIM; ++d) {
+        double acc = force[d] / mass;
+        acc_norm_sq += acc * acc;
+        vel_norm_sq += vel[d] * vel[d];
+    }
+
+    double acc_norm = std::sqrt(acc_norm_sq);
+    double vel_norm = std::sqrt(vel_norm_sq);
+
+    double acc_limit = acc_norm > 0.0 ? std::sqrt(EPS / acc_norm) : dt_max;
+    double vel_limit = vel_norm > 0.0 ? EPS / vel_norm : dt_max;
+
+    double dt_crit = std::min({dt_max, acc_limit, vel_limit});
+    const double min_dt = dt_max * 1e-6;
+    return std::max(dt_crit, min_dt);
+}
+
+double update_timesteps(const std::vector<Vec<DIM>> &local_vel,
+                        const std::vector<Vec<DIM>> &local_forces,
+                        const std::vector<double> &masses,
+                        int locOffset,
+                        double dt_max,
+                        std::vector<double> &particle_dt) {
+    const double min_dt = dt_max * 1e-6;
+    double next_dt = dt_max;
+
+    for (size_t i = 0; i < local_vel.size(); ++i) {
+        int q = locOffset + static_cast<int>(i);
+        double dt_crit = critical_timestep(masses[q], local_vel[i], local_forces[i], dt_max);
+        double candidate = particle_dt[i];
+
+        if (candidate > dt_crit) {
+            while (candidate > dt_crit) {
+                candidate *= 0.5;
+            }
+        } else if (candidate < 0.5 * dt_crit) {
+            candidate = std::min(candidate * 2.0, dt_max);
+        }
+
+        candidate = std::clamp(candidate, min_dt, dt_max);
+        particle_dt[i] = candidate;
+        next_dt = std::min(next_dt, candidate);
+    }
+
+    return next_dt;
+}
+
 inline void runSerial(const forces::force<DIM>& force) {
 
     // BELOW CODE: for generating random test1.in.out
@@ -70,21 +122,25 @@ inline void runSerial(const forces::force<DIM>& force) {
     // exit(0);
 
     int n;
-    int steps;
-    double dt;
+    double total_time;
+    double dt_max;
 
     std::vector<double> masses;
     std::vector<Vec<DIM>> positions;
     std::vector<Vec<DIM>> velocities;
     std::vector<Vec<DIM>> forces;
+    std::vector<double> particle_dt;
 
-    utils::readFromFile("test1.in.out", n, steps, dt, masses, positions, velocities);
+    utils::readFromFile("test1.in.out", n, total_time, dt_max, masses, positions, velocities);
 
     forces.resize(n);
+    particle_dt.assign(n, dt_max);
     for (int i = 0; i < n; i++) for (int j = 0; j < DIM; j++)
         forces[i][j] = 0.;
 
-    for (int step = 0; step < steps; step++) {
+    double time = 0.0;
+    int step = 0;
+    while (time < total_time) {
         // make forces equal to zero
         for (int i = 0; i < n; i++) {
             for (int j = 0; j < DIM; j++) {
@@ -100,6 +156,12 @@ inline void runSerial(const forces::force<DIM>& force) {
             }
         }
 
+        double next_dt = update_timesteps(velocities, forces, masses, 0, dt_max, particle_dt);
+        double dt = std::min(next_dt, total_time - time);
+        if (dt <= 0.0) {
+            break;
+        }
+
         // apply forces, i.e. calc new positions and velocities
         for (int i = 0; i < n; i++) {
             for (int j = 0; j < DIM; j++) {
@@ -109,8 +171,10 @@ inline void runSerial(const forces::force<DIM>& force) {
         }
     
         // save for testing
-        utils::saveToFile("test1." + std::to_string(step) + ".out", n, steps, dt,
+        utils::saveToFile("test1." + std::to_string(step) + ".out", n, total_time, dt_max,
             masses, positions, velocities, false);
+        time += dt;
+        ++step;
     }
 
 }
@@ -137,8 +201,8 @@ inline void compareOutputs() {
 
     for (int step = 0; step < steps; step++) {
         int n_serial, n_mpi;
-        int steps_serial, steps_mpi;
-        double dt_serial, dt_mpi;
+        double total_time_serial, total_time_mpi;
+        double dt_max_serial, dt_max_mpi;
 
         std::vector<double> masses_serial, masses_mpi;
         std::vector<Vec<DIM>> positions_serial, positions_mpi;
@@ -147,14 +211,14 @@ inline void compareOutputs() {
         std::string filename_serial = serial_pref + filename_suf;
         std::string filename_mpi = mpi_pref + filename_suf;
 
-        utils::readFromFile(filename_serial, n_serial, steps_serial, dt_serial, 
+        utils::readFromFile(filename_serial, n_serial, total_time_serial, dt_max_serial, 
                      masses_serial, positions_serial, positions_serial, false);
-        utils::readFromFile(filename_mpi, n_mpi, steps_mpi, dt_mpi, 
+        utils::readFromFile(filename_mpi, n_mpi, total_time_mpi, dt_max_mpi, 
                      masses_mpi, positions_mpi, positions_mpi, false);
 
-        assert(steps == steps_mpi && steps_mpi == steps_serial);
         assert(n_mpi == n_serial);
-        assert(fabs(dt_mpi - dt_serial) < e);
+        assert(fabs(total_time_mpi - total_time_serial) < e);
+        assert(fabs(dt_max_mpi - dt_max_serial) < e);
         
         for (int i = 0; i < n_mpi; i++) {
             assert(fabs(masses_mpi[i]- masses_serial[i]) < e);
@@ -189,8 +253,8 @@ int main(int argc, char** argv) {
     allMPIInit(&argc, &argv, mpiSize, mpiRank);
     
     int n;
-    int steps;
-    double dt;
+    double total_time;
+    double dt_max;
 
     std::vector<double> masses;
     std::vector<Vec<DIM>> positions;
@@ -200,12 +264,12 @@ int main(int argc, char** argv) {
 
     if (mpiRank == 0) {
         // Root process reads input, and will broadcast the data.
-        utils::readFromFile("test1.in.out", n, steps, dt, masses, positions, allVelocities);
+        utils::readFromFile("test1.in.out", n, total_time, dt_max, masses, positions, allVelocities);
     } 
 
     MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
-    MPI_Bcast(&steps, 1, MPI_INT, 0, MPI_COMM_WORLD);
-    MPI_Bcast(&dt, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&total_time, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&dt_max, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     // std::cout << " RANK r=" << mpiRank << "   is here 1" << std::endl;
 
     // TODO make this computation only in root process (mpiRank 0)
@@ -223,6 +287,7 @@ int main(int argc, char** argv) {
 
     localVelocities.resize(locN);
     localForces.resize(locN);
+    std::vector<double> particle_dt(locN, dt_max);
 
     MPI_Bcast(masses.data(), n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     MPI_Bcast(positions.data(), n, MPI_VEC, 0, MPI_COMM_WORLD);
@@ -236,7 +301,10 @@ int main(int argc, char** argv) {
     // std::cout << " RANK r=" << mpiRank << "   is here 2" << std::endl;
     MPI_Barrier(MPI_COMM_WORLD); // TODO is this needed???
 
-    for (int step = 0; step < steps; step++) {
+    double time = 0.0;
+    int step = 0;
+
+    while (time < total_time) {
         // make forces equal to zero
         for (int i = 0; i < locN; i++) {
             for (int j = 0; j < DIM; j++) {
@@ -249,8 +317,17 @@ int main(int argc, char** argv) {
             int q = locOffset + i;
             for (int k = 0; k < n; k++) {
                 if (q == k) continue;
-                localForces[i] += force(positions[i], masses[i], positions[k], masses[k]);
+                localForces[i] += force(positions[q], masses[q], positions[k], masses[k]);
             }
+        }
+
+        double local_next_dt = update_timesteps(localVelocities, localForces, masses, locOffset, dt_max, particle_dt);
+        double next_dt = dt_max;
+        MPI_Allreduce(&local_next_dt, &next_dt, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+
+        double dt = std::min(next_dt, total_time - time);
+        if (dt <= 0.0) {
+            break;
         }
 
         // apply forces, i.e. calc new positions and velocities
@@ -259,7 +336,7 @@ int main(int argc, char** argv) {
             for (int j = 0; j < DIM; j++) {
                 // TODO first update velocities, and then positions, or vice versa?
                 positions[q][j] += dt * localVelocities[i][j];
-                localVelocities[i][j] += dt / masses[i] * localForces[i][j];
+                localVelocities[i][j] += dt / masses[q] * localForces[i][j];
             }
         }
     
@@ -272,9 +349,12 @@ int main(int argc, char** argv) {
 
         if (mpiRank == 0) {
             // save for testing
-            utils::saveToFile("test1-MPI." + std::to_string(step) + ".out", n, steps, dt,
+            utils::saveToFile("test1-MPI." + std::to_string(step) + ".out", n, total_time, dt_max,
                 masses, positions, allVelocities, false);
         }
+
+        time += dt;
+        ++step;
     }
 
     allMPIFinalize();

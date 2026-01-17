@@ -11,11 +11,11 @@
 namespace utils {
 
 template <int DIM>
-void saveToStream(std::ostream &out, int n, int steps, double dt,
+void saveToStream(std::ostream &out, int n, double total_time, double dt_max,
                   const std::vector<double> &m, const std::vector<Vec<DIM>> &p,
                   const std::vector<Vec<DIM>> &v, bool saveVelocities = true) {
   out << DIM << "\n";
-  out << n << " " << steps << " " << dt << "\n";
+  out << n << " " << total_time << " " << dt_max << "\n";
   for (int i = 0; i < n; i++) {
     out << m[i] << " ";
     for (int j = 0; j < DIM; j++)
@@ -29,14 +29,14 @@ void saveToStream(std::ostream &out, int n, int steps, double dt,
 }
 
 template <int DIM>
-void readFromStream(std::istream &in, int &n, int &steps, double &dt,
+void readFromStream(std::istream &in, int &n, double &total_time, double &dt_max,
                     std::vector<double> &m, std::vector<Vec<DIM>> &p,
                     std::vector<Vec<DIM>> &v, bool readVelocities = true) {
   int dimInFile;
   in >> dimInFile;
   assert(dimInFile == DIM);
 
-  in >> n >> steps >> dt;
+  in >> n >> total_time >> dt_max;
 
   m.resize(n);
   p.resize(n);
@@ -54,12 +54,12 @@ void readFromStream(std::istream &in, int &n, int &steps, double &dt,
 }
 
 template <int DIM>
-void saveToFile(const std::string &fileName, int n, int steps, double dt,
+void saveToFile(const std::string &fileName, int n, double total_time, double dt_max,
                 const std::vector<double> &m, const std::vector<Vec<DIM>> &p,
                 const std::vector<Vec<DIM>> &v, bool saveVelocities = true) {
   std::ofstream fout(fileName);
 
-  saveToStream(fout, n, steps, dt, m, p, v, saveVelocities);
+  saveToStream(fout, n, total_time, dt_max, m, p, v, saveVelocities);
 
   fout.flush();
   fout.close();
@@ -68,7 +68,7 @@ void saveToFile(const std::string &fileName, int n, int steps, double dt,
 }
 
 template <int DIM>
-void readFromFile(const std::string &fileName, int &n, int &steps, double &dt,
+void readFromFile(const std::string &fileName, int &n, double &total_time, double &dt_max,
                   std::vector<double> &m, std::vector<Vec<DIM>> &p,
                   std::vector<Vec<DIM>> &v, bool readVelocities = true) {
   std::ifstream fin(fileName);
@@ -76,12 +76,12 @@ void readFromFile(const std::string &fileName, int &n, int &steps, double &dt,
     throw std::runtime_error("File not found: " + fileName + ". Ensure that it exists then try again.");
   }
 
-  readFromStream(fin, n, steps, dt, m, p, v, readVelocities);
+  readFromStream(fin, n, total_time, dt_max, m, p, v, readVelocities);
 
   fin.close();
   std::cout << "Read from file " << fileName << std::endl;
-  std::cout << "  DIM=" << DIM << " n=" << n << " steps=" << steps
-            << " dt=" << dt << std::endl;
+  std::cout << "  DIM=" << DIM << " n=" << n << " T_end=" << total_time
+            << " dt_max=" << dt_max << std::endl;
 }
 
 template <int DIM>
@@ -110,7 +110,8 @@ void generateRandomToFile(const std::string &filename, int n = 100,
     }
   }
 
-  saveToFile(filename, n, steps, dt, masses, positions, velocities);
+  double total_time = static_cast<double>(steps) * dt;
+  saveToFile(filename, n, total_time, dt, masses, positions, velocities);
 }
 
 } // namespace utils

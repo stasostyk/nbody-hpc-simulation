@@ -44,6 +44,8 @@ and then to build the target, simply run `make`.
 
 For both the Basic and Reduced sequential algorithms, a **struct** including mass, position, and velocity was defined for the particles to increase data locality. Since the force matrix requires initialization to zero at every iteration, we chose to keep it separate from the struct so that all its elements are stored in contiguous memory cells.
 
+Both serial solvers now run until a target physical time is reached rather than a fixed step count. The input header is `<DIM> <n> <T_end> <dt_max>`, with `dt_max` acting as an upper bound for an adaptive timestep that refines or coarsens according to local dynamics.
+
 As the Euler method does not enforce **energy conservation**, a total_energy function was implemented to verify that the system's total energy variation remains negligible. Tests confirmed the model's validity, showing that as dt approaches zero, the energy variation decreases as expected.
 
 The **computing time** for the Basic version was verified to be significantly higher than the Reduced one. This is due to the Reduced version halving the number of arithmetic operations by exploiting Newton's third law, although both algorithms technically maintain $O(N^2)$ complexity. Both solvers share a similar implementation structure to facilitate performance comparison.
