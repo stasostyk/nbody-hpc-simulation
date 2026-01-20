@@ -9,6 +9,18 @@ template<int DIM>
 struct Vec : public std::array<double, DIM> {
     using std::array<double, DIM>::array;  // Inherit constructors
 
+    Vec(const std::array<double, DIM> &other) {
+        for (int i = 0; i < DIM; i++) {
+            (*this)[i] = other[i];
+        }
+    }
+
+    Vec(double scalar) {
+        for (int i = 0; i < DIM; i++) {
+            (*this)[i] = scalar;
+        }
+    }
+
     Vec& operator=(double scalar) {
         std::fill(this->begin(), this->end(), scalar);
         return *this;
@@ -56,6 +68,26 @@ struct Vec : public std::array<double, DIM> {
         Vec result = *this;
         result *= scalar;
         return result;
+    }
+
+    Vec& operator/=(double scalar) {
+        for (size_t i = 0; i < DIM; ++i) {
+            (*this)[i] /= scalar;
+        }
+        return *this;
+    }
+
+    Vec operator/(double scalar) const {
+        Vec result = *this;
+        result /= scalar;
+        return result;
+    }
+
+    void print() const {
+        std::cout << "(";
+        for (size_t dimId = 0; dimId < DIM-1; dimId++)
+            std::cout << (*this)[dimId] << ", ";
+        std::cout << (*this)[DIM-1] << ")";
     }
 };
 
