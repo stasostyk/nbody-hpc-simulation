@@ -40,24 +40,16 @@ if(BUILD_SIMULATION)
 
     add_executable(generate src/generate-input.cpp)
     add_executable(compareOutputs src/compare-outputs.cpp)
-
-    add_executable(simulation src/main.cpp)
-
-    add_executable(barnes_hut_serial 
-        src/barnes_hut_serial/main.cpp
-        src/barnes_hut_serial/BHTree.cpp
-    )
+    add_executable(simulation src/simulation.cpp)
 
     # Link OpenMP if available
     if(USE_OPENMP AND OpenMP_CXX_FOUND)
-        target_link_libraries(barnes_hut_serial OpenMP::OpenMP_CXX)
-        target_compile_definitions(barnes_hut_serial PRIVATE USE_OPENMP=1)
-
-        message(STATUS "Executables built with OpenMP support")
+        target_link_libraries(simulation OpenMP::OpenMP_CXX)
+        target_compile_definitions(simulation PRIVATE USE_OPENMP=1)
+        message(STATUS "Simulation built with OpenMP support")
     else()
-        target_compile_definitions(barnes_hut_serial PRIVATE USE_OPENMP=0)
-
-        message(STATUS "Executables built without OpenMP support")
+        target_compile_definitions(simulation PRIVATE USE_OPENMP=0)
+        message(STATUS "Simulation built WITHOUT OpenMP support")
     endif()
 
 endif(BUILD_SIMULATION)

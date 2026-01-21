@@ -26,6 +26,10 @@ public:
 
   void compute(Bodies<DIM, Attributes> &bodiesPassed) override {
     std::vector<Body<DIM>> bodies(n);
+
+    #if USE_OPENMP
+        #pragma omp parallel for schedule(static)
+    #endif
     for (int i = 0; i < n; i++) {
         bodies[i].bodyId = i;
         bodies[i].acceleration = 0.;
@@ -46,10 +50,11 @@ public:
         _accelerations[i] = bhTree.calculateForce(bodies[i], theta, _force);
     }
 
+    #if USE_OPENMP
+        #pragma omp parallel for schedule(static)
+    #endif
     for (size_t i = 0; i < (size_t)n; i++) {
-      for (int j = 0; j < DIM; j++) {
-        _accelerations[i][j] /= bodiesPassed.global(i).mass();
-      }
+      _accelerations[i] /= bodiesPassed.global(i).mass();
     }
   }
 
