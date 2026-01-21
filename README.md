@@ -23,6 +23,27 @@ There are two CMake options available:
  * `BUILD_SIMULATION` (default: `ON`) Build the simulation executables
  * `BUILD_VISUALISATION` (default: `OFF`) Build the visualisation executable
 
+TODO explain USE_OPENMP
+* `USE_OPENMP`
+
+build with openmp:
+mkdir build
+cd build
+cmake ..
+make
+
+build without openmp:
+cmake .. -DUSE_OPENMP=OFF
+make
+
+to buildl with specific thread count, after building run with:
+<!-- # After building, run with: -->
+export OMP_NUM_THREADS=4
+./barnes_hut_serial 0.5
+
+<!-- # Or inline: -->
+OMP_NUM_THREADS=8 ./barnes_hut_serial 0.5
+
 ### Simulation
 
 First, make sure that you have an environment with MPI installed. 

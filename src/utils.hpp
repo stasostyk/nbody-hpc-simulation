@@ -113,4 +113,56 @@ void generateRandomToFile(const std::string &filename, int n = 100,
   saveToFile(filename, n, steps, dt, masses, positions, velocities);
 }
 
+void check(bool cond, std::string msg) {
+  if (cond) return;
+  std::cout << "CONDITION FAILED, msg: " << msg << std::endl;
+  exit(1);
+}
+
+void checkDoubles(double d1, double d2, std::string desc, double harshEps = 1e-2, double softEps = 1e-4) {
+  double diff = fabs(d1 - d2);
+  if (diff > softEps) {
+    std::cout << "Error large for " << desc << ", val1=" << d1 << ", val2=" << d2 << std::endl;
+  }
+  check(diff < harshEps, desc);
+}
+
+template <int DIM>
+void compareOutputs(std::string filename1, std::string filename2) {
+  std::cout << "===============================================" << std::endl;
+  std::cout << "Comparing files " << filename1 << " and " << filename2 << std::endl;
+
+  double e = 1e-6;
+
+  int n1, n2;
+  int steps1, steps2;
+  double dt1, dt2;
+
+  std::vector<double> masses1, masses2;
+  std::vector<Vec<DIM>> positions1, positions2;
+
+  utils::readFromFile(filename1, n1, steps1, dt1, 
+                masses1, positions1, positions1, false);
+  utils::readFromFile(filename2, n2, steps2, dt2, 
+                masses2, positions2, positions2, false);
+
+  check(steps1 == steps2, "steps");
+  check(n1 == n2, "n");
+  check(fabs(dt1 - dt2) < e, "dt");
+  
+  for (int i = 0; i < n1; i++) {
+      // check(fabs(masses1[i]- masses2[i]) < e, "masses");
+      checkDoubles(masses1[i], masses2[i], "masses " + std::to_string(i));
+      for (int j = 0; j < DIM; j++) {
+          // check(fabs(positions1[i][j] - positions2[i][j]) < e, "positions");
+          checkDoubles(positions1[i][j], positions2[i][j], "positions " + std::to_string(i));
+      }
+  }
+
+  std::cout << "CHECK FINISHED, EVERYTHING IS FINE" << std::endl;
+  std::cout << "===============================================" << std::endl;
+
+}
+
+
 } // namespace utils

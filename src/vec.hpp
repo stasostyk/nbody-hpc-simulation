@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <functional>
+#include <cmath>
 
 // Vector in our DIM-dimensional space
 template<int DIM>
@@ -85,9 +86,21 @@ struct Vec : public std::array<double, DIM> {
 
     void print() const {
         std::cout << "(";
-        for (size_t dimId = 0; dimId < DIM-1; dimId++)
+        for (int dimId = 0; dimId < DIM-1; dimId++)
             std::cout << (*this)[dimId] << ", ";
         std::cout << (*this)[DIM-1] << ")";
+    }
+
+    double normSquared() {
+        double result = 0.;
+        for (int i = 0; i < DIM; i++) {
+            result += (*this)[i] * (*this)[i];
+        }
+        return result;
+    }
+
+    double norm() const {
+        return sqrt(normSquared());
     }
 };
 

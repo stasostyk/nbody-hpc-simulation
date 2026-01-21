@@ -6,6 +6,11 @@
 
 #include "forces/gravity.hpp"
 #include "utils.hpp"
+#include "timer.hpp"
+
+#if USE_OPENMP
+    #include <omp.h>
+#endif
 
 constexpr int DIM = 2;
 
@@ -78,14 +83,31 @@ inline void runSerial(const forces::force<DIM>& force) {
     std::vector<Vec<DIM>> velocities;
     std::vector<Vec<DIM>> forces;
 
-    utils::readFromFile("test1.in.out", n, steps, dt, masses, positions, velocities);
+    utils::readFromFile<DIM>("test1.in.out", n, steps, dt, masses, positions, velocities);
 
     forces.resize(n);
     for (int i = 0; i < n; i++) for (int j = 0; j < DIM; j++)
         forces[i][j] = 0.;
 
+    #if USE_OPENMP
+    // Print OpenMP info
+    #pragma omp parallel
+    {
+        #pragma omp master
+        {
+            std::cout << "Using OpenMP with " << omp_get_num_threads() << " threads" << std::endl;
+        }
+    }
+    #endif
+
+    Timer t;
+    t.start();
+
     for (int step = 0; step < steps; step++) {
         // make forces equal to zero
+        #if USE_OPENMP
+            #pragma omp parallel for schedule(static)
+        #endif
         for (int i = 0; i < n; i++) {
             for (int j = 0; j < DIM; j++) {
                 forces[i][j] = 0.;
@@ -93,6 +115,9 @@ inline void runSerial(const forces::force<DIM>& force) {
         }
 
         // compute all forces
+        #if USE_OPENMP
+            #pragma omp parallel for schedule(static)
+        #endif
         for (int i = 0; i < n; i++) {
             for (int k = 0; k < n; k++) {
                 if (i == k) continue;
@@ -101,6 +126,9 @@ inline void runSerial(const forces::force<DIM>& force) {
         }
 
         // apply forces, i.e. calc new positions and velocities
+        #if USE_OPENMP
+            #pragma omp parallel for schedule(static)
+        #endif
         for (int i = 0; i < n; i++) {
             for (int j = 0; j < DIM; j++) {
                 positions[i][j] += dt * velocities[i][j];
@@ -108,10 +136,18 @@ inline void runSerial(const forces::force<DIM>& force) {
             }
         }
     
-        // save for testing
-        utils::saveToFile("test1." + std::to_string(step) + ".out", n, steps, dt,
-            masses, positions, velocities, false);
+        // // save for testing
+        // utils::saveToFile("test1." + std::to_string(step) + ".out", n, steps, dt,
+        //     masses, positions, velocities, false);
     }
+
+    t.end();
+    t.print();
+
+
+    // save for testing
+    utils::saveToFile("serial.test1.out", n, steps, dt,
+        masses, positions, velocities, false);
 
 }
 
@@ -184,6 +220,10 @@ int main(int argc, char** argv) {
 
     forces::gravity<DIM> gravity{};
     const forces::force<DIM> &force = gravity;
+
+    runSerial(forces::gravity<DIM>{});
+    utils::compareOutputs<DIM>("serial.test1.out", "bhSerial.test1.lastStep.out");
+    return 0;
 
     int mpiSize, mpiRank;
     allMPIInit(&argc, &argv, mpiSize, mpiRank);

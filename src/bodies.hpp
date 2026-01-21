@@ -19,4 +19,16 @@ struct Body
             std::cout << position[dimId] << ", ";
         std::cout << position[dim-1] << ")";
     }
+
+    void combineWith(const Body<dim> &other) {
+        if (other.mass < 1e-10) return;
+
+        double newMass = mass + other.mass;
+        Vec<dim> newPosition = (position * mass + other.position * other.mass) / newMass;
+        Vec<dim> newVelocity = (velocity * mass + other.velocity * other.mass) / newMass;
+
+        mass = newMass;
+        position = newPosition;
+        velocity = newVelocity;
+    }
 };
