@@ -68,6 +68,9 @@ template <int DIM>
 void readFromFile(const std::string &fileName, int &steps, double &dt,
                   bodies<DIM, EmptyAttributes>& bodies, bool readVelocities = true) {
   std::ifstream fin(fileName);
+  if (!fin.is_open()) {
+    throw std::runtime_error("File not found: " + fileName + ". Ensure that it exists then try again.");
+  }
 
   readFromStream(fin, steps, dt, bodies, readVelocities);
 

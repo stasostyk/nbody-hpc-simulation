@@ -11,30 +11,61 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include "shaders/shader.hpp"
-#include "particle/Particle.hpp"
 
 #include "imgui.h"
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_opengl3.h"
 
 #include "../utils.hpp"
+#include "renderBufferObjects/ParticleBufferObject.hpp"
+#include "renderBufferObjects/TraceBufferObject.hpp"
+#include "camera/Camera.hpp"
 
-constexpr int DIM = 2;
-const int NUM_FILES = 1000;
-int WINDOW_HEIGHT  = 700;
-int WINDOW_WIDTH = 700;
+constexpr int DIM = 3;
+const int NUM_FILES = 49;
+constexpr int WINDOW_HEIGHT = 600;
+constexpr int WINDOW_WIDTH = 900;
+std::string FILE_PATH = "../build/test-MPI-reduced-";
 
-void loadParticles(int index, std::vector<Particle>& particles) {
-    particles.clear();
-    int steps;
+
+void processKeyboardInputs(GLFWwindow* window, float deltaTime, Camera& camera) {
+    float yawDiff = 0, pitchDiff = 0;
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+        yawDiff += deltaTime;
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+        yawDiff -= deltaTime;
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+        pitchDiff += deltaTime;
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+        pitchDiff -= deltaTime;
+    }
+
+    camera.rotateCamera(pitchDiff, yawDiff);
+}
+
+glm::vec3 particlePositionVec(Vec<DIM>& position) {
+    return glm::vec3(position[0], position[1], DIM==3?position[2]:0.0f);
+}
+
+void updateParticles(int index, bodies<DIM>& bodies, std::vector<glm::vec3>& combinedTraces) {
     double dt;
-    bodies<DIM> bodies;
-    utils::readFromFile("../build/test-MPI-reduced-"+std::to_string(index)+".out", steps, dt, bodies);
+    int steps;
+    utils::readFromFile(FILE_PATH+std::to_string(index)+".out", steps, dt, bodies, false);
+    int n = bodies.position.size();
 
-    for (int i = 0; i < bodies.globalSize(); i++) {
-        Particle p(glm::vec3(bodies.position[i][0], bodies.position[i][1], 0.0f), glm::vec3(i*1.0f/bodies.globalSize(), 0.0f, 1.0f), bodies.mass[i]/20.0f);
-        p.init();
-        particles.push_back(p);
+    for (int i = 0; i < n; i++) {;
+        if (combinedTraces.size() < n*(NUM_FILES-1)) {
+            combinedTraces.push_back(particlePositionVec(bodies.position[i]));
+            if (combinedTraces.size() > 10*n) {
+                combinedTraces.erase(combinedTraces.begin(), combinedTraces.begin()+n);
+            }
+        }
     }
 }
 
@@ -51,7 +82,7 @@ int main() {
     
     
     // window setup
-    GLFWwindow* window = glfwCreateWindow(WINDOW_HEIGHT, WINDOW_WIDTH, "N-Body Simulation", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "N-Body Simulation", nullptr, nullptr);
     if (!window) {
         std::cerr << "Failed to create GLFW window\n";
         glfwTerminate();
@@ -78,59 +109,135 @@ int main() {
     
 
     // scene setup
-    Shader shader("./shaders/basic.vert", "./shaders/basic.frag");
-    glm::vec3 camPos    = glm::vec3(0.0f, 0.0f, 400.0f);
-    glm::vec3 camTarget = glm::vec3(0.0f, 0.0f, 0.0f);
-    glm::vec3 camUp     = glm::vec3(0.0f, 1.0f, 0.0f);
+    Shader basicShader("./shaders/basic.vert", "./shaders/basic.frag");
+    Shader particleShader("./shaders/particle.vert", "./shaders/particle.frag");
+    Camera camera(400.0f, basicShader, WINDOW_WIDTH, WINDOW_HEIGHT);
     
 
     // particle setup
-    int currentParticleSet = 0;
-    std::vector<Particle> particles;
-    loadParticles(currentParticleSet, particles);
+    int currentParticleSet = 1; // first one already loaded
+    double dt;
+    int steps;
+    std::vector<glm::vec3> combinedTraces; // all combined to improve performance
+    bodies<DIM> bodies;
     
+    utils::readFromFile(FILE_PATH + "0.out", steps, dt, bodies, false);
+    int n = bodies.position.size();
+    // utils::readFromFile("../build/test-MPI-reduced-0.out", n, steps, dt, masses, positions, velocities);
+
+    // Set up render objects for particles
+    ParticleBufferObject particleBufferObject;
+    particleBufferObject.initialize(n);
+
+    // Set up render objects for traces
+    TraceBufferObject traceBufferObject;
+    traceBufferObject.initialize(n);
+    
+    // force rendering to take depth into account
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
+    
+    // mainloop variables
+    double prevSimFrameTime = glfwGetTime(); // last time we update simulation timestep
+    double prevLoopTime = glfwGetTime(); // last time opengl drew onto screen (mainloop)
+    bool playSim = false;
+    bool disableTrace = false;
+    float scale = 1.0;
+    float zoom = 1.0;
     
     // main render loop
     while (!glfwWindowShouldClose(window)) {
-        float time = static_cast<float>(glfwGetTime());
+        double time = glfwGetTime();
+        processKeyboardInputs(window,time-prevLoopTime, camera);
 
+        // Load new simulation timestep if dt time has passed
+        if (playSim && time - prevSimFrameTime > dt) {
+            prevSimFrameTime = time;
+            currentParticleSet = (currentParticleSet + 1) % NUM_FILES;
+            updateParticles(currentParticleSet, bodies, combinedTraces);
+        }
+        
+        // Reset each frame
         glClearColor(0.05f, 0.05f, 0.08f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        
+        // Camera set up
+        basicShader.use();
+        basicShader.setMat4("view", camera.view);
+        basicShader.setMat4("projection", camera.projection);
+        particleShader.use();
+        particleShader.setMat4("view", camera.view);
+        particleShader.setMat4("projection", camera.projection);
+        
+        
+        // Draw particles using parallel instancing
+        std::vector<ParticleBufferObject::ParticleInstanceData> instances;
+        instances.reserve(n);
 
-        shader.use();
+        for (int i = 0; i < n; i++)
+        {
+            glm::mat4 model(1.0f);
+            model = glm::translate(model, particlePositionVec(bodies.position[i]));
+            float radius = scale * bodies.mass[i] / 20.0f;
+            model = glm::scale(model, glm::vec3(radius));
+            glm::vec3 color(i*1.0f/n, 0.0f, 1.0f); 
 
-        // camera setup
-        glm::mat4 view = glm::lookAt(camPos, camTarget, camUp);
-        float aspect = (WINDOW_HEIGHT == 0) ? 1.0f : (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT;
-        glm::mat4 projection = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 1000.0f);
-        shader.setMat4("view", view);
-        shader.setMat4("projection", projection);
-
-        // draw particles and trace
-        for (Particle& p : particles) {
-            p.drawTrace(shader);
-            p.draw(shader);
+            instances.push_back({ model, color });
         }
 
+        particleBufferObject.loadNewData(instances);
+        particleBufferObject.draw(instances.size());
+
+
+        // Draw trace using parallel instancing
+        if (!disableTrace) {
+            basicShader.use();
+            glm::mat4 model = glm::mat4(1.0f);
+            basicShader.setMat4("model", model);
+            basicShader.setVec3("color", glm::vec3(1.0f, 1.0f, 1.0f));
+            traceBufferObject.loadNewData(combinedTraces);
+            traceBufferObject.draw(combinedTraces.size());
+        }
+        
+        
+        
         // IMGUI scene
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
-
-        ImGui::Begin("Particle Loader");
+        
+        ImGui::Begin("Control Panel");
+        ImGui::Spacing();
+        ImGui::Text("Time Settings");
         if (ImGui::Button("Next Timestep")) {
-            currentParticleSet = (currentParticleSet + 20) % NUM_FILES;
-            loadParticles(currentParticleSet, particles);
+            currentParticleSet = (currentParticleSet + 1) % NUM_FILES;
+            updateParticles(currentParticleSet, bodies, combinedTraces);
         }
+        
+        ImGui::Checkbox("Loop Simulation", &playSim);
+        
+        ImGui::Spacing();
+        ImGui::Text("Visual Settings");
+        ImGui::Checkbox("Disable Trace", &disableTrace);
+        ImGui::SliderFloat("Particle Scale", &scale, 0.1f, 2.0f, "ratio = %.1f");
+        
+        ImGui::Spacing();
+        ImGui::Text("Movement");
+        if (ImGui::SliderFloat("Zoom", &zoom, 0.5f, 10.0f, "ratio = %.1f")) {
+            camera.zoomCamera(zoom);
+        }
+        
+        
         ImGui::End();
-
+        
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
+        prevLoopTime = time;
+        
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
-
+    
     glfwTerminate();
     return 0;
 }
