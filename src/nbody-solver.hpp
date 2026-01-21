@@ -17,11 +17,13 @@ public:
 
     virtual AccelerationAccumulator<DIM, Attributes> &getAccumulator() = 0;
 
-    void init(const std::string &filename) {
+    virtual void init(int argc, char **argv, const std::string &filename) {
         readFromFile(filename);
     }
 
-    void runSimulation(
+    virtual void finalize() {} // in MPI Solver case, they need to finalize
+
+    virtual void runSimulation(
         integrators::Integrator<DIM, Attributes> &integrator,
         const std::string &outputFilePref,
         int outputFrequency = -1
@@ -37,8 +39,12 @@ public:
         t.end();
         t.print();
 
-        std::string outputFinalFilename = outputFilePref + ".finalTimestep.out";
-        utils::saveToFile(outputFinalFilename, steps, dt, bodies, false);
+        if (canPrint()) {
+            std::string outputFinalFilename = outputFilePref + ".finalTimestep.out";
+            utils::saveToFile(outputFinalFilename, steps, dt, bodies, false);
+        }
+
+        finalize();
     }
 
 protected:
@@ -49,11 +55,13 @@ protected:
     std::unique_ptr<AccelerationAccumulator<DIM, Attributes>> accumulator;
     const forces::force<DIM, Attributes> &force;
 
-    void oneStep() {} // Do something after integrator step if needed.
+    virtual void oneStep() {} // Do something after integrator step if needed.
 
     void readFromFile(const std::string &filename) {
         utils::readFromFile<DIM>(filename, steps, dt, bodies);
         n = bodies.globalSize();
     }
+
+    virtual bool canPrint() { return true; } // in MPI case, only root process would print
 
 };

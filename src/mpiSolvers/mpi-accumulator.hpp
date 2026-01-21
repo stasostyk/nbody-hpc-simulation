@@ -1,7 +1,7 @@
 #pragma once
 
-#include "acceleration-accumulator.hpp"
-#include "forces/func.hpp"
+#include "../acceleration-accumulator.hpp"
+#include "../forces/func.hpp"
 #include <mpi.h>
 
 template <int DIM, typename Attributes> 

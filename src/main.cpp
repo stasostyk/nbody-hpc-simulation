@@ -3,6 +3,7 @@
 #include "nbody-solver.hpp"
 #include "serialSolvers/serialSolver.hpp"
 #include "serialSolvers/serialReducedSolver.hpp"
+#include "mpiSolvers/mpiSolver.hpp"
 #include "acceleration-accumulator.hpp"
 #include "body.hpp"
 #include "utils.hpp"
@@ -19,7 +20,8 @@
 void printHelp(char **argv) {
     std::cerr << "Usage: " << argv[0]
                 << " [inputFilename] [solver]\n";
-    std::cerr << "  solver: Serial SerialReduced\n";
+    std::cerr << "  solver: Serial SerialReduced MPI\n";
+    std::cerr << "NOTE! if using MPI solvers, run with: mpirun -n [procCount] ...\n";
 
     std::cerr << std::endl;
 }
@@ -43,8 +45,10 @@ int main(int argc, char **argv) {
         solver = std::make_unique<SerialSolver<DIM, EmptyAttributes>>(force);
     } else if (solverType == "SerialReduced") {
         solver = std::make_unique<SerialReducedSolver<DIM, EmptyAttributes>>(force);
+    } else if (solverType == "MPI") {
+        solver = std::make_unique<MPISolver<DIM, EmptyAttributes>>(force);
     } else {
-        std::cerr << "ERROR: UNKNOWN SOLVER TYPE" << std::endl;
+        std::cerr << "ERROR: UNKNOWN SOLVER TYPE " << solverType << std::endl;
         printHelp(argv);
         return 1;
     }
@@ -52,10 +56,11 @@ int main(int argc, char **argv) {
     // SerialSolver<DIM, EmptyAttributes> solver(force);
     
     // Init solver and accumulator.
-    solver->init(inputFilename);
+    solver->init(argc, argv, inputFilename);
     AccelerationAccumulator<DIM, EmptyAttributes> &accumulator = solver->getAccumulator();
 
     // NOTE: Choose integrator.
+    // TODO choose integrator via command line param
     integrators::Euler<DIM, EmptyAttributes> integrator(accumulator);
     // integrators::Sympletic<DIM, EmptyAttributes> integrator(accumulator);
     // integrators::Verlet<DIM, EmptyAttributes> integrator(accumulator);
