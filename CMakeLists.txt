@@ -40,10 +40,11 @@ if(BUILD_SIMULATION)
 
     add_executable(nbody_serial src/serial.cpp)
     add_executable(nbody_reduced src/serial.cpp)
-    add_compile_definitions(nbody_reduced REDUCED)
     add_executable(nbody_mpi src/nbody-mpi.cpp)
     add_executable(nbody_mpi_reduced src/nbody-mpi-reduced.cpp)
+
     add_executable(generate src/generate-input.cpp)
+    add_executable(compareOutputs src/compare-outputs.cpp)
 
     add_executable(mainSimulation src/main.cpp)
 
