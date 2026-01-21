@@ -1,9 +1,13 @@
 #pragma once
 
-#include <vector>
-#include "../bodies.hpp"
+#include "../body.hpp"
 
-void euler(std::vector<Body> &bodies, double dt);
-void sympletic_euler(std::vector<Body> &bodies, double dt);
-void velocity_verlet(std::vector<Body> &bodies, double dt);
-void rk4(std::vector<Body> &bodies, double dt);
+namespace integrators {
+
+template <int DIM, typename Attributes> 
+class Integrator {
+public:
+  virtual void step(bodies<DIM, Attributes> &bodies, double dt) = 0;
+};
+
+} // namespace integrators

@@ -6,25 +6,30 @@
 
 namespace forces {
 
-template <int DIM> 
-struct gravity : public force<DIM, EmptyAttributes> {
+struct charge {
+  double charge;
+};
+
+template <int DIM> struct coulomb : public force<DIM, charge> {
 
 public:
-  // Gravitational constant
-  static constexpr double G = 6.673e-11;
+  // Vacuum permittivity
+  static constexpr double k = 8.987551785972e9;
 
-  Vec<DIM> operator()(const body<DIM, EmptyAttributes> &subjectBody,
-                      const body<DIM, EmptyAttributes> &exertingBody) const override {
+  Vec<DIM> operator()(const body<DIM, charge> &subjectBody,
+                      const body<DIM, charge> &exertingBody) const override {
 
     constexpr double eps = 1e-12;
 
     Vec<DIM> displacement;
     std::transform(exertingBody.pos().begin(), exertingBody.pos().end(),
-                   subjectBody.pos().begin(), displacement.begin(), std::minus{});
+                   subjectBody.pos().begin(), displacement.begin(),
+                   std::minus{});
     double dist2 = std::inner_product(displacement.begin(), displacement.end(),
                                       displacement.begin(), eps);
-    double coeff =
-        G * subjectBody.mass() * exertingBody.mass() / (dist2 * std::sqrt(dist2));
+    double coeff = -k * subjectBody.attributes().charge *
+                   exertingBody.attributes().charge /
+                   (dist2 * std::sqrt(dist2));
 
     std::transform(displacement.begin(), displacement.end(),
                    displacement.begin(), [coeff](auto r) { return coeff * r; });

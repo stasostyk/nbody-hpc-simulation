@@ -2,9 +2,16 @@
 #include <assert.h>
 #include <vector>
 #include <cmath>
-#include <iostream>
 
+#include "acceleration-accumulator.hpp"
+#include "body.hpp"
 #include "forces/gravity.hpp"
+#include "integrators/euler.hpp"
+#include "integrators/integrator.hpp"
+#include "integrators/sympletic.hpp"
+#include "integrators/verlet.hpp"
+#include "integrators/rk4.hpp"
+#include "mpi-accumulator.hpp"
 #include "utils.hpp"
 #include "timer.hpp"
 
@@ -12,7 +19,7 @@
     #include <omp.h>
 #endif
 
-constexpr int DIM = 2;
+constexpr int DIM = 3;
 
 static MPI_Datatype MPI_VEC;
 
@@ -24,35 +31,6 @@ inline static void initMPIType() {
 inline static void freeMPIType() {
     MPI_Type_free(&MPI_VEC);
 }
-
-// struct Particle {
-//     double mass;
-//     double velocity;
-//     std::array<double, DIM> position;
-//     std::array<double, DIM> force;
-
-//     Particle() : mass(0.), velocity(0.), position{}, force{} {}
-// };
-
-// // gets force acting on particle p1
-// inline std::array<double, DIM> force_on_p1(const Particle &p1, const Particle &p2)
-// {
-//     std::array<double, DIM> dist;
-//     double distSquared = 1e-12; // softening to avoid division by zero
-//     for (int i = 0; i < DIM; i++) {
-//         dist[i] = p1.position[i] - p2.position[i];
-//         distSquared += dist[i] * dist[i];
-//     }
-
-//     double dist3 = distSquared * std::sqrt(distSquared);
-//     double coeff = -G * p1.mass * p2.mass / dist3;
-
-//     std::array<double, DIM> force;
-//     for (int i = 0; i < DIM; i++) 
-//         force[i] = dist[i] * coeff;
-    
-//     return force;
-// }
 
 // utility: block counts/displacements for an array of N elements across comm_sz
 void make_counts_displs(int N, int comm_sz, std::vector<int> &counts, std::vector<int> &displs) {
@@ -68,6 +46,7 @@ void make_counts_displs(int N, int comm_sz, std::vector<int> &counts, std::vecto
     }
 }
 
+/*
 inline void runSerial(const forces::force<DIM>& force) {
 
     // BELOW CODE: for generating random test1.in.out
@@ -150,6 +129,7 @@ inline void runSerial(const forces::force<DIM>& force) {
         masses, positions, velocities, false);
 
 }
+*/
 
 inline void allMPIInit(int *argc, char ***argv, int &mpiSize, int &mpiRank) {
     MPI_Init(argc, argv);
@@ -164,62 +144,11 @@ inline void allMPIFinalize() {
     MPI_Finalize();
 }
 
-inline void compareOutputs() {
-
-    std::string serial_pref = "test1";
-    std::string mpi_pref = "test1-MPI";
-    int steps = 10;
-    double e = 1e-10;
-
-    for (int step = 0; step < steps; step++) {
-        int n_serial, n_mpi;
-        int steps_serial, steps_mpi;
-        double dt_serial, dt_mpi;
-
-        std::vector<double> masses_serial, masses_mpi;
-        std::vector<Vec<DIM>> positions_serial, positions_mpi;
-
-        std::string filename_suf = + "." + std::to_string(step) + ".out";
-        std::string filename_serial = serial_pref + filename_suf;
-        std::string filename_mpi = mpi_pref + filename_suf;
-
-        utils::readFromFile(filename_serial, n_serial, steps_serial, dt_serial, 
-                     masses_serial, positions_serial, positions_serial, false);
-        utils::readFromFile(filename_mpi, n_mpi, steps_mpi, dt_mpi, 
-                     masses_mpi, positions_mpi, positions_mpi, false);
-
-        assert(steps == steps_mpi && steps_mpi == steps_serial);
-        assert(n_mpi == n_serial);
-        assert(fabs(dt_mpi - dt_serial) < e);
-        
-        for (int i = 0; i < n_mpi; i++) {
-            assert(fabs(masses_mpi[i]- masses_serial[i]) < e);
-            for (int j = 0; j < DIM; j++) {
-                assert(fabs(positions_mpi[i][j] - positions_serial[i][j]) < e);
-            }
-        }
-    }
-
-    std::cout << "CHECK FINISHED, EVERYTHING IS FINE" << std::endl;
-
-}
-
 int main(int argc, char** argv) {
+    constexpr int outputStride = 1;
 
-    // runSerial(forces::gravity<DIM>{});
-    // return 0;
-
-    // compareOutputs();
-    // return 0;
-
-    /*
-    TODO
-    - compare results with serial version
-    - later: instead of basic version, do the reduced version
-    */
-
-    forces::gravity<DIM> gravity{};
-    const forces::force<DIM> &force = gravity;
+    const forces::force<DIM, EmptyAttributes> &force = forces::gravity<DIM>();
+    bodies<DIM, EmptyAttributes> bodies;
 
     runSerial(forces::gravity<DIM>{});
     utils::compareOutputs<DIM>("serial.test1.out", "bhSerial.test1.lastStep.out");
@@ -232,21 +161,15 @@ int main(int argc, char** argv) {
     int steps;
     double dt;
 
-    std::vector<double> masses;
-    std::vector<Vec<DIM>> positions;
-    std::vector<Vec<DIM>> allVelocities; // only filled by mpiRank=0
-    std::vector<Vec<DIM>> localVelocities;
-    std::vector<Vec<DIM>> localForces;
-
     if (mpiRank == 0) {
         // Root process reads input, and will broadcast the data.
-        utils::readFromFile("test1.in.out", n, steps, dt, masses, positions, allVelocities);
+        utils::readFromFile("test1.in.out", steps, dt, bodies);
+        n = bodies.globalSize();
     } 
 
     MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&steps, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&dt, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    // std::cout << " RANK r=" << mpiRank << "   is here 1" << std::endl;
 
     // TODO make this computation only in root process (mpiRank 0)
     std::vector<int> counts, displs;
@@ -254,66 +177,33 @@ int main(int argc, char** argv) {
     int locN = counts[mpiRank];
     int locOffset = displs[mpiRank];
 
-    std::cout << " rank=" << mpiRank << " locN: " << locN << " locOffset: " << locOffset << std::endl;
+    bodies.resize(n, locN, locOffset);
 
-    if (mpiRank != 0) {
-        masses.resize(n);
-        positions.resize(n);
-    }
+    MPI_Bcast(bodies.position.data(), n, MPI_VEC, 0, MPI_COMM_WORLD);
+    MPI_Bcast(bodies.velocity.data(), n, MPI_VEC, 0, MPI_COMM_WORLD);
+    MPI_Bcast(bodies.mass.data(), n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-    localVelocities.resize(locN);
-    localForces.resize(locN);
-
-    MPI_Bcast(masses.data(), n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    MPI_Bcast(positions.data(), n, MPI_VEC, 0, MPI_COMM_WORLD);
-
-    // TODO broadcast velocities in place ???
-    std::vector<int> sendcounts(mpiSize), senddispls(mpiSize);
-    for (int p = 0; p < mpiSize; ++p) { sendcounts[p] = counts[p]; senddispls[p] = displs[p]; }
-    MPI_Scatterv(allVelocities.data(), sendcounts.data(), senddispls.data(), MPI_VEC, 
-                 localVelocities.data(), locN, MPI_VEC, 0, MPI_COMM_WORLD);
-
-    // std::cout << " RANK r=" << mpiRank << "   is here 2" << std::endl;
-    MPI_Barrier(MPI_COMM_WORLD); // TODO is this needed???
+    MPI_Barrier(MPI_COMM_WORLD);
+    
+    MPIAccumulator<DIM, EmptyAttributes> accumulator(MPI_VEC, locN, counts, displs, force);
+    // integrators::Euler<DIM, EmptyAttributes> integrator(accumulator);
+    // integrators::Sympletic<DIM, EmptyAttributes> integrator(accumulator);
+    // integrators::Verlet<DIM, EmptyAttributes> integrator(accumulator);
+    integrators::RK4<DIM, EmptyAttributes> integrator(accumulator);
 
     for (int step = 0; step < steps; step++) {
-        // make forces equal to zero
-        for (int i = 0; i < locN; i++) {
-            for (int j = 0; j < DIM; j++) {
-                localForces[i][j] = 0.;
-            }
-        }
+        integrator.step(bodies, dt);
 
-        // compute all forces
-        for (int i = 0; i < locN; i++) {
-            int q = locOffset + i;
-            for (int k = 0; k < n; k++) {
-                if (q == k) continue;
-                localForces[i] += force(positions[i], masses[i], positions[k], masses[k]);
-            }
-        }
+        if (step % outputStride == 0) {
+            MPI_Allgatherv(bodies.position.data() + bodies.localOffset(),
+                           bodies.localSize(), MPI_VEC, bodies.position.data(),
+                           counts.data(), displs.data(), MPI_VEC, MPI_COMM_WORLD);
 
-        // apply forces, i.e. calc new positions and velocities
-        for (int i = 0; i < locN; i++) {
-            int q = locOffset + i;
-            for (int j = 0; j < DIM; j++) {
-                // TODO first update velocities, and then positions, or vice versa?
-                positions[q][j] += dt * localVelocities[i][j];
-                localVelocities[i][j] += dt / masses[i] * localForces[i][j];
+            if (mpiRank == 0) {
+                // save for testing
+                utils::saveToFile("test1-MPI." + std::to_string(step) + ".out", 
+                    steps, dt, bodies, false);
             }
-        }
-    
-        // All tasks gather all positions (will be required for the next step)
-        std::vector<int> recvcounts(mpiSize), recvdispls(mpiSize);
-        for (int p = 0; p < mpiSize; ++p) { recvcounts[p] = counts[p]; recvdispls[p] = displs[p]; }
-        MPI_Allgatherv(positions.data() + locOffset, locN, MPI_VEC,
-                       positions.data(), recvcounts.data(), recvdispls.data(), 
-                       MPI_VEC, MPI_COMM_WORLD); 
-
-        if (mpiRank == 0) {
-            // save for testing
-            utils::saveToFile("test1-MPI." + std::to_string(step) + ".out", n, steps, dt,
-                masses, positions, allVelocities, false);
         }
     }
 

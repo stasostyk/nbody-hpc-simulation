@@ -22,9 +22,11 @@
 #include "camera/Camera.hpp"
 
 constexpr int DIM = 3;
-const int NUM_FILES = 99;
+const int NUM_FILES = 49;
 constexpr int WINDOW_HEIGHT = 600;
 constexpr int WINDOW_WIDTH = 900;
+std::string FILE_PATH = "../build/test-MPI-reduced-";
+// std::string FILE_PATH = "../build/test1-MPI.";
 
 
 void processKeyboardInputs(GLFWwindow* window, float deltaTime, Camera& camera) {
@@ -52,20 +54,15 @@ glm::vec3 particlePositionVec(Vec<DIM>& position) {
     return glm::vec3(position[0], position[1], DIM==3?position[2]:0.0f);
 }
 
-void updateParticles(int index, std::vector<Vec<DIM>>& positions, std::vector<glm::vec3>& combinedTraces) {
-    int n;
-    int steps;
+void updateParticles(int index, bodies<DIM>& bodies, std::vector<glm::vec3>& combinedTraces) {
     double dt;
-    std::vector<double> masses;
-    std::vector<Vec<DIM>> velocities;
-    std::vector<Vec<DIM>> forces;
-    utils::readFromFile("../build/test1-MPI."+std::to_string(index)+".out", n, steps, dt, masses, positions, velocities);
-    // utils::readFromFile("../build/test-MPI-reduced-"+std::to_string(index)+".out", n, steps, dt, masses, positions, velocities);
-    
+    int steps;
+    utils::readFromFile(FILE_PATH+std::to_string(index)+".out", steps, dt, bodies, false);
+    int n = bodies.position.size();
 
     for (int i = 0; i < n; i++) {;
         if (combinedTraces.size() < n*(NUM_FILES-1)) {
-            combinedTraces.push_back(particlePositionVec(positions[i]));
+            combinedTraces.push_back(particlePositionVec(bodies.position[i]));
             if (combinedTraces.size() > 10*n) {
                 combinedTraces.erase(combinedTraces.begin(), combinedTraces.begin()+n);
             }
@@ -120,16 +117,13 @@ int main() {
 
     // particle setup
     int currentParticleSet = 1; // first one already loaded
-    int n;
-    int steps;
     double dt;
+    int steps;
     std::vector<glm::vec3> combinedTraces; // all combined to improve performance
-    std::vector<double> masses;
-    std::vector<Vec<DIM>> positions;
-    std::vector<Vec<DIM>> velocities;
-    std::vector<Vec<DIM>> forces;
+    bodies<DIM> bodies;
     
-    utils::readFromFile("../build/test1-MPI.0.out", n, steps, dt, masses, positions, velocities);
+    utils::readFromFile(FILE_PATH + "0.out", steps, dt, bodies, false);
+    int n = bodies.position.size();
     // utils::readFromFile("../build/test-MPI-reduced-0.out", n, steps, dt, masses, positions, velocities);
 
     // Set up render objects for particles
@@ -161,7 +155,7 @@ int main() {
         if (playSim && time - prevSimFrameTime > dt) {
             prevSimFrameTime = time;
             currentParticleSet = (currentParticleSet + 1) % NUM_FILES;
-            updateParticles(currentParticleSet, positions, combinedTraces);
+            updateParticles(currentParticleSet, bodies, combinedTraces);
         }
         
         // Reset each frame
@@ -184,8 +178,8 @@ int main() {
         for (int i = 0; i < n; i++)
         {
             glm::mat4 model(1.0f);
-            model = glm::translate(model, particlePositionVec(positions[i]));
-            float radius = scale * masses[i] / 20.0f;
+            model = glm::translate(model, particlePositionVec(bodies.position[i]));
+            float radius = scale * bodies.mass[i] / 20.0f;
             model = glm::scale(model, glm::vec3(radius));
             glm::vec3 color(i*1.0f/n, 0.0f, 1.0f); 
 
@@ -218,7 +212,7 @@ int main() {
         ImGui::Text("Time Settings");
         if (ImGui::Button("Next Timestep")) {
             currentParticleSet = (currentParticleSet + 1) % NUM_FILES;
-            updateParticles(currentParticleSet, positions, combinedTraces);
+            updateParticles(currentParticleSet, bodies, combinedTraces);
         }
         
         ImGui::Checkbox("Loop Simulation", &playSim);
@@ -226,11 +220,11 @@ int main() {
         ImGui::Spacing();
         ImGui::Text("Visual Settings");
         ImGui::Checkbox("Disable Trace", &disableTrace);
-        ImGui::SliderFloat("Particle Scale", &scale, 0.1f, 2.0f, "ratio = %.1f");
+        ImGui::SliderFloat("Particle Scale", &scale, 0.1f, 20.0f, "ratio = %.1f");
         
         ImGui::Spacing();
         ImGui::Text("Movement");
-        if (ImGui::SliderFloat("Zoom", &zoom, 0.5f, 10.0f, "ratio = %.1f")) {
+        if (ImGui::SliderFloat("Zoom", &zoom, 0.5f, 10.0f, "zoom = %.1f")) {
             camera.zoomCamera(zoom);
         }
         
