@@ -38,27 +38,24 @@ int main() {
   integrators::RK4<DIM, EmptyAttributes> integrator(accumulator);
 
   const double dt_max = dt;
-  double time = 0.0;
+  const double T_end  = n_steps * dt_max;
 
+  double time = 0.0;
   std::vector<double> particle_dt(bodies.localSize(), dt_max);
 
+  while (time + 1e-15 < T_end) {
+    accumulator.compute(bodies);
 
-  for (int step = 0; step < n_steps; ++step) {
-    const double t_target = (step + 1) * dt_max;
+    const double dt_local =
+        timestep::update_timesteps<DIM, EmptyAttributes>(
+            bodies, accumulator, dt_max, particle_dt);
 
-    while (time < t_target) {
-      accumulator.compute(bodies);
+    const double dt_step = std::min(dt_local, T_end - time);
 
-      const double dt_local =
-          timestep::update_timesteps<DIM, EmptyAttributes>(
-              bodies, accumulator, dt_max, particle_dt);
-
-      const double dt_step = std::min(dt_local, t_target - time);
-
-      integrator.step(bodies, dt_step);
-      time += dt_step;
-    }
+    integrator.step(bodies, dt_step);
+    time += dt_step;
   }
+
 
   utils::saveToStream(std::cout, n_steps, dt, bodies);
   return 0;

@@ -103,52 +103,70 @@ int main(int argc, char** argv) {
     const double T_end  = steps * dt_max;
 
     double time = 0.0;
-    int step = 0;
+    double next_output_time = dt_max;
+    int frame = 0;
 
     std::vector<double> particle_dt(bodies.localSize(), dt_max);
-    int dbg = 0;
 
-    for (int frame = 0; frame < steps; ++frame) {
-    const double t_target = (frame + 1) * dt_max;
-
-    while (time < t_target) {
+    while (time + 1e-15 < T_end) {
         accumulator.compute(bodies);
 
-        double local_dt = timestep::update_timesteps<DIM, EmptyAttributes>(
-            bodies, accumulator, dt_max, particle_dt);
+        double local_dt =
+            timestep::update_timesteps<DIM, EmptyAttributes>(
+                bodies, accumulator, dt_max, particle_dt);
 
         double dt_global = local_dt;
         MPI_Allreduce(&local_dt, &dt_global, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
 
-        const double dt_step = std::min(dt_global, t_target - time);
+        // propose adaptive step
+        double dt_step = std::min(dt_global, T_end - time);
 
-        integrator.step(bodies, dt_step);
-        time += dt_step;
-        if (mpiRank == 0 && frame == 0) {
-            double mn = particle_dt[0], mx = particle_dt[0], sum = 0.0;
-            for (double x : particle_dt) { mn = std::min(mn,x); mx = std::max(mx,x); sum += x; }
-            std::cout << "particle_dt: min=" << mn
-                        << " mean=" << (sum/particle_dt.size())
-                        << " max=" << mx << "\n";
+        // if we'd cross the next output time, land exactly on it
+        dt_step = std::min(dt_step, next_output_time - time);
+
+        // safety (floating point edge)
+        if (dt_step < 0.0) dt_step = 0.0;
+
+        // advance (only if positive)
+        if (dt_step > 0.0) {
+            integrator.step(bodies, dt_step);
+            time += dt_step;
+        } else {
+            // already at an output time within tolerance
+            time = next_output_time;
         }
 
-    
+        // catch-up outputs
+        while (frame < steps && time >= next_output_time - 1e-12 * dt_max) {
 
+            MPI_Allgatherv(
+                bodies.position.data() + bodies.localOffset(),
+                bodies.localSize(), MPI_VEC,
+                bodies.position.data(),
+                counts.data(), displs.data(),
+                MPI_VEC, MPI_COMM_WORLD
+            );
+
+            if (mpiRank == 0) {
+                utils::saveToFile("test1-MPI." + std::to_string(frame) + ".out",
+                                steps, dt_max, bodies, false);
+            }
+
+            next_output_time = std::min(next_output_time + dt_max, T_end);
+            frame++;
+        }
     }
 
 
-    MPI_Allgatherv(bodies.position.data() + bodies.localOffset(),
-                    bodies.localSize(), MPI_VEC,
-                    bodies.position.data(),
-                    counts.data(), displs.data(),
-                    MPI_VEC, MPI_COMM_WORLD);
-
-    if (mpiRank == 0) {
-        utils::saveToFile("test1-MPI." + std::to_string(frame) + ".out",
-                        steps, dt_max, bodies, false);
+    if (mpiRank == 0 && frame != steps) {
+        std::cerr << "Warning: produced " << frame
+                << " frames, expected " << steps << "\n";
     }
-}
+
+
+
 
 
     allMPIFinalize();
+    return 0;
 }
