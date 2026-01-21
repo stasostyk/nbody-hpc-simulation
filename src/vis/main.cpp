@@ -26,6 +26,7 @@ const int NUM_FILES = 49;
 constexpr int WINDOW_HEIGHT = 600;
 constexpr int WINDOW_WIDTH = 900;
 std::string FILE_PATH = "../build/test-MPI-reduced-";
+// std::string FILE_PATH = "../build/test1-MPI.";
 
 
 void processKeyboardInputs(GLFWwindow* window, float deltaTime, Camera& camera) {
@@ -219,11 +220,11 @@ int main() {
         ImGui::Spacing();
         ImGui::Text("Visual Settings");
         ImGui::Checkbox("Disable Trace", &disableTrace);
-        ImGui::SliderFloat("Particle Scale", &scale, 0.1f, 2.0f, "ratio = %.1f");
+        ImGui::SliderFloat("Particle Scale", &scale, 0.1f, 20.0f, "ratio = %.1f");
         
         ImGui::Spacing();
         ImGui::Text("Movement");
-        if (ImGui::SliderFloat("Zoom", &zoom, 0.5f, 10.0f, "ratio = %.1f")) {
+        if (ImGui::SliderFloat("Zoom", &zoom, 0.5f, 10.0f, "zoom = %.1f")) {
             camera.zoomCamera(zoom);
         }
         

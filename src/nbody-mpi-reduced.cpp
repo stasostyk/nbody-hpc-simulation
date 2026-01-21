@@ -169,7 +169,7 @@ void runMPIReduced(int argc, char **argv,
 
     if (step % outputStride == 0)
       gatherAndSaveAllPositions(mpiSize, mpiRank, n, steps, dt, bodies.position,
-                                bodies.velocity, masses, std::to_string(step));
+                                bodies.velocity, masses, std::to_string(step/outputStride));
   }
 
   gatherAndSaveAllPositions(mpiSize, mpiRank, n, steps, dt, bodies.position,
@@ -285,7 +285,7 @@ void run3Charges(int argc, char **argv, int outputStride) {
 
     if (step % outputStride == 0)
       gatherAndSaveAllPositions(mpiSize, mpiRank, n, steps, dt, bodies.position,
-                                bodies.velocity, masses, std::to_string(step));
+                                bodies.velocity, masses, std::to_string(step/outputStride));
   }
 
   gatherAndSaveAllPositions(mpiSize, mpiRank, n, steps, dt, bodies.position,
