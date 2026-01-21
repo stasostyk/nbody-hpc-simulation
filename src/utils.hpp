@@ -117,9 +117,6 @@ void compareOutputs(const std::string& prefixA = "test1", const std::string& pre
         double dtA, dtB;
         bodies<DIM, EmptyAttributes> bodiesA, bodiesB;
 
-        std::vector<double> masses_serial, masses_mpi;
-        std::vector<Vec<DIM>> positions_serial, positions_mpi;
-
         std::string filenameSuffix = + "." + std::to_string(step) + ".out";
         std::string filenameA = prefixA + filenameSuffix;
         std::string filenameB = prefixB + filenameSuffix;
@@ -141,5 +138,55 @@ void compareOutputs(const std::string& prefixA = "test1", const std::string& pre
 
     std::cout << "CHECK FINISHED, EVERYTHING IS FINE" << std::endl;
 }
+
+void check(bool cond, std::string msg) {
+  if (cond) return;
+  std::cout << "CONDITION FAILED, msg: " << msg << std::endl;
+  exit(1);
+}
+
+void checkDoubles(double d1, double d2, std::string desc, double harshEps = 1e-2, double softEps = 1e-4) {
+  double diff = fabs(d1 - d2);
+  if (diff > softEps) {
+    std::cout << "Error large for " << desc << ", val1=" << d1 << ", val2=" << d2 << std::endl;
+  }
+  check(diff < harshEps, desc);
+}
+
+
+template<int DIM>
+void compareOutputsSingleFile(std::string filename1, std::string filename2) {
+  std::cout << "===============================================" << std::endl;
+  std::cout << "Comparing files " << filename1 << " and " << filename2 << std::endl;
+
+  double e = 1e-6;
+
+  int stepsA, stepsB;
+  double dtA, dtB;
+  bodies<DIM, EmptyAttributes> bodiesA, bodiesB;
+
+  utils::readFromFile<DIM>(filename1, stepsA, dtA, bodiesA);
+  utils::readFromFile<DIM>(filename2, stepsB, dtB, bodiesB);
+  int n1 = bodiesA.globalSize();
+  int n2 = bodiesB.globalSize();
+
+  check(stepsA == stepsB, "steps");
+  check(n1 == n2, "n");
+  check(fabs(dtA - dtB) < e, "dt");
+  
+  for (int i = 0; i < n1; i++) {
+      // check(fabs(masses1[i]- masses2[i]) < e, "masses");
+      checkDoubles(bodiesA.global(i).mass(), bodiesB.global(i).mass(), "masses " + std::to_string(i));
+      for (int j = 0; j < DIM; j++) {
+          // check(fabs(positions1[i][j] - positions2[i][j]) < e, "positions");
+          checkDoubles(bodiesA.global(i).pos()[j], bodiesB.global(i).pos()[j], "positions " + std::to_string(i));
+      }
+  }
+
+  std::cout << "CHECK FINISHED, EVERYTHING IS FINE" << std::endl;
+  std::cout << "===============================================" << std::endl;
+
+}
+
 
 } // namespace utils

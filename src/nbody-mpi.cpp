@@ -13,6 +13,11 @@
 #include "integrators/rk4.hpp"
 #include "mpi-accumulator.hpp"
 #include "utils.hpp"
+#include "timer.hpp"
+
+#if USE_OPENMP
+    #include <omp.h>
+#endif
 
 constexpr int DIM = 3;
 
@@ -100,10 +105,11 @@ int main(int argc, char** argv) {
     for (int step = 0; step < steps; step++) {
         integrator.step(bodies, dt);
 
+        MPI_Allgatherv(bodies.position.data() + bodies.localOffset(),
+                        bodies.localSize(), MPI_VEC, bodies.position.data(),
+                        counts.data(), displs.data(), MPI_VEC, MPI_COMM_WORLD);
+
         if (step % outputStride == 0) {
-            MPI_Allgatherv(bodies.position.data() + bodies.localOffset(),
-                           bodies.localSize(), MPI_VEC, bodies.position.data(),
-                           counts.data(), displs.data(), MPI_VEC, MPI_COMM_WORLD);
 
             if (mpiRank == 0) {
                 // save for testing

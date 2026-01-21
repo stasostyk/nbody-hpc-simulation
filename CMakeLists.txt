@@ -3,6 +3,7 @@ project(nbody LANGUAGES CXX C)
 
 option(BUILD_SIMULATION "Build the simulation" ON)
 option(BUILD_VISUALISATION "Build the simulation visualisation" OFF)
+option(USE_OPENMP "Use OpenMP in the NBody solvers" ON)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -20,6 +21,18 @@ endif()
 
 if(BUILD_SIMULATION)
 
+    # Find OpenMP
+    if(USE_OPENMP)
+        find_package(OpenMP)
+        if(OpenMP_CXX_FOUND)
+            message(STATUS "OpenMP found: ${OpenMP_CXX_VERSION}")
+            message(STATUS "OpenMP flags: ${OpenMP_CXX_FLAGS}")
+        else()
+            message(WARNING "OpenMP not found - building without parallel support")
+            set(USE_OPENMP OFF)
+        endif()
+    endif()
+
     find_package(MPI REQUIRED)
     set(CMAKE_CXX_COMPILER "${MPI_CXX_COMPILER}")
 
@@ -31,6 +44,26 @@ if(BUILD_SIMULATION)
     add_executable(nbody_mpi src/nbody-mpi.cpp)
     add_executable(nbody_mpi_reduced src/nbody-mpi-reduced.cpp)
     add_executable(generate src/generate-input.cpp)
+
+    add_executable(barnes_hut_serial 
+        src/barnes_hut_serial/main.cpp
+        src/barnes_hut_serial/BHTree.cpp
+    )
+
+    # Link OpenMP if available
+    if(USE_OPENMP AND OpenMP_CXX_FOUND)
+        target_link_libraries(barnes_hut_serial OpenMP::OpenMP_CXX)
+        target_compile_definitions(barnes_hut_serial PRIVATE USE_OPENMP=1)
+
+        target_link_libraries(nbody_mpi OpenMP::OpenMP_CXX)
+        target_compile_definitions(nbody_mpi PRIVATE USE_OPENMP=1)
+
+        message(STATUS "Executables built with OpenMP support")
+    else()
+        target_compile_definitions(barnes_hut_serial PRIVATE USE_OPENMP=0)
+        target_compile_definitions(nbody_mpi PRIVATE USE_OPENMP=0)
+        message(STATUS "Executables built without OpenMP support")
+    endif()
 
 endif(BUILD_SIMULATION)
 

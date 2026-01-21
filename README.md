@@ -19,9 +19,10 @@ git submodule update --init --recursive
 ```
 on an already cloned repository.
 
-There are two CMake options available:
+There are three CMake options available:
  * `BUILD_SIMULATION` (default: `ON`) Build the simulation executables
  * `BUILD_VISUALISATION` (default: `OFF`) Build the visualisation executable
+ * `USE_OPENMP` (default: `ON`) Use OpenMP in N-body solvers where implemented
 
 ### Simulation
 
@@ -29,6 +30,27 @@ First, make sure that you have an environment with MPI installed.
 For instance, open the container used in the laboratories and load the `gcc-glibc` module.
 Then, create and enter a build directory and run `cmake ..` to configure the build system. 
 Finally, running `make` should build all simulation-related targets.
+
+#### Compiling with OpenMP
+
+As the default option is `USE_OPENMP=ON`, to compile with OpenMP, just use:
+```
+mkdir build
+cd build
+cmake ..
+make
+```
+
+Then, to run with specific thread count, you can specify, for example:
+```
+OMP_NUM_THREADS=8 ./barnes_hut_serial 0.5
+```
+
+To build *without* OpenMP, do instead:
+```
+cmake .. -DUSE_OPENMP=OFF
+make
+```
 
 ### Visualisation
 
