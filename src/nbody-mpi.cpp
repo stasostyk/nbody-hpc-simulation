@@ -150,9 +150,9 @@ int main(int argc, char** argv) {
     const forces::force<DIM, EmptyAttributes> &force = forces::gravity<DIM>();
     bodies<DIM, EmptyAttributes> bodies;
 
-    runSerial(forces::gravity<DIM>{});
-    utils::compareOutputs<DIM>("serial.test1.out", "bhSerial.test1.lastStep.out");
-    return 0;
+    // runSerial(forces::gravity<DIM>{});
+    // utils::compareOutputs<DIM>("serial.test1.out", "bhSerial.test1.lastStep.out");
+    // return 0;
 
     int mpiSize, mpiRank;
     allMPIInit(&argc, &argv, mpiSize, mpiRank);
@@ -194,10 +194,11 @@ int main(int argc, char** argv) {
     for (int step = 0; step < steps; step++) {
         integrator.step(bodies, dt);
 
+        MPI_Allgatherv(bodies.position.data() + bodies.localOffset(),
+                        bodies.localSize(), MPI_VEC, bodies.position.data(),
+                        counts.data(), displs.data(), MPI_VEC, MPI_COMM_WORLD);
+
         if (step % outputStride == 0) {
-            MPI_Allgatherv(bodies.position.data() + bodies.localOffset(),
-                           bodies.localSize(), MPI_VEC, bodies.position.data(),
-                           counts.data(), displs.data(), MPI_VEC, MPI_COMM_WORLD);
 
             if (mpiRank == 0) {
                 // save for testing
