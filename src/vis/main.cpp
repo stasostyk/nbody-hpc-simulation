@@ -11,82 +11,64 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include "shaders/shader.hpp"
-#include "particle/Particle.hpp"
 
 #include "imgui.h"
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_opengl3.h"
 
 #include "../utils.hpp"
+#include "renderBufferObjects/ParticleBufferObject.hpp"
+#include "renderBufferObjects/TraceBufferObject.hpp"
+#include "camera/Camera.hpp"
 
 constexpr int DIM = 3;
-const int NUM_FILES = 100;
-int WINDOW_HEIGHT  = 700;
-int WINDOW_WIDTH = 700;
+const int NUM_FILES = 49;
+constexpr int WINDOW_HEIGHT = 600;
+constexpr int WINDOW_WIDTH = 900;
+std::string FILE_PATH = "../build/test-MPI-reduced-";
+// std::string FILE_PATH = "../build/test1-MPI.";
 
-void updateParticles(int index, std::vector<Particle>& particles) {
-    int n;
-    int steps;
+
+void processKeyboardInputs(GLFWwindow* window, float deltaTime, Camera& camera) {
+    float yawDiff = 0, pitchDiff = 0;
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+        yawDiff += deltaTime;
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+        yawDiff -= deltaTime;
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+        pitchDiff += deltaTime;
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+        pitchDiff -= deltaTime;
+    }
+
+    camera.rotateCamera(pitchDiff, yawDiff);
+}
+
+glm::vec3 particlePositionVec(Vec<DIM>& position) {
+    return glm::vec3(position[0], position[1], DIM==3?position[2]:0.0f);
+}
+
+void updateParticles(int index, bodies<DIM>& bodies, std::vector<glm::vec3>& combinedTraces) {
     double dt;
-    std::vector<double> masses;
-    std::vector<Vec<DIM>> positions;
-    std::vector<Vec<DIM>> velocities;
-    std::vector<Vec<DIM>> forces;
-    utils::readFromFile("../build/test1-MPI."+std::to_string(index)+".out", n, steps, dt, masses, positions, velocities);
-    
+    int steps;
+    utils::readFromFile(FILE_PATH+std::to_string(index)+".out", steps, dt, bodies, false);
+    int n = bodies.position.size();
 
     for (int i = 0; i < n; i++) {;
-        particles[i].position = glm::vec3(positions[i][0], positions[i][1], DIM==2 ? 0.0f : positions[i][2]);
-        if (particles[i].trace.size() < NUM_FILES-1)
-            particles[i].trace.push_back(particles[i].position);
+        if (combinedTraces.size() < n*(NUM_FILES-1)) {
+            combinedTraces.push_back(particlePositionVec(bodies.position[i]));
+            if (combinedTraces.size() > 10*n) {
+                combinedTraces.erase(combinedTraces.begin(), combinedTraces.begin()+n);
+            }
+        }
     }
 }
-
-void drawAxes3D(Shader& shader, float length = 1000.0f) {
-    glm::mat4 model = glm::mat4(1.0f);
-    shader.setMat4("model", model);
-
-    // lines in X, Y, Z directions
-    float verts[] = {
-        -length, 0.0f, 0.0f,
-         length, 0.0f, 0.0f,
-
-         0.0f, -length, 0.0f,
-         0.0f,  length, 0.0f,
-
-         0.0f, 0.0f, -length,
-         0.0f, 0.0f,  length
-    };
-
-    GLuint VAO, VBO;
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
-
-    glBindVertexArray(VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_STATIC_DRAW);
-
-    glVertexAttribPointer(
-        0, 3, GL_FLOAT, GL_FALSE,
-        3 * sizeof(float), (void*)0
-    );
-    glEnableVertexAttribArray(0);
-
-    shader.setVec3("color", glm::vec3(1, 0, 0));
-    glDrawArrays(GL_LINES, 0, 2);
-
-
-    shader.setVec3("color", glm::vec3(0, 1, 0));
-    glDrawArrays(GL_LINES, 2, 2);
-
-    shader.setVec3("color", glm::vec3(0, 0, 1));
-    glDrawArrays(GL_LINES, 4, 2);
-
-    glDeleteBuffers(1, &VBO);
-    glDeleteVertexArrays(1, &VAO);
-}
-
-
 
 int main() {
     // GLFW setup
@@ -101,7 +83,7 @@ int main() {
     
     
     // window setup
-    GLFWwindow* window = glfwCreateWindow(WINDOW_HEIGHT, WINDOW_WIDTH, "N-Body Simulation", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "N-Body Simulation", nullptr, nullptr);
     if (!window) {
         std::cerr << "Failed to create GLFW window\n";
         glfwTerminate();
@@ -128,96 +110,135 @@ int main() {
     
 
     // scene setup
-    Shader shader("./shaders/basic.vert", "./shaders/basic.frag");
-    glm::vec3 camPos    = glm::vec3(0.0f, 0.0f, 400.0f);
-    glm::vec3 camTarget = glm::vec3(0.0f, 0.0f, 0.0f);
-    glm::vec3 camUp     = glm::vec3(0.0f, 1.0f, 0.0f);
-    float camRadius = 400.0f;
-    float camSpeed  = 0.1f;
+    Shader basicShader("./shaders/basic.vert", "./shaders/basic.frag");
+    Shader particleShader("./shaders/particle.vert", "./shaders/particle.frag");
+    Camera camera(400.0f, basicShader, WINDOW_WIDTH, WINDOW_HEIGHT);
     
 
     // particle setup
     int currentParticleSet = 1; // first one already loaded
-    int n;
-    int steps;
     double dt;
-    std::vector<Particle> particles;
-    std::vector<double> masses;
-    std::vector<Vec<DIM>> positions;
-    std::vector<Vec<DIM>> velocities;
-    std::vector<Vec<DIM>> forces;
+    int steps;
+    std::vector<glm::vec3> combinedTraces; // all combined to improve performance
+    bodies<DIM> bodies;
     
-    utils::readFromFile("../build/test1-MPI.0.out", n, steps, dt, masses, positions, velocities);
-    particles.reserve(n);
+    utils::readFromFile(FILE_PATH + "0.out", steps, dt, bodies, false);
+    int n = bodies.position.size();
+    // utils::readFromFile("../build/test-MPI-reduced-0.out", n, steps, dt, masses, positions, velocities);
 
-    // initialize all particles
-    for (int i = 0; i < n; i++) {
-        particles.emplace_back(Particle(
-            glm::vec3(positions[i][0], positions[i][1], DIM==2 ? 0.0f : positions[i][2]), 
-            glm::vec3(i*1.0f/n, 0.0f, 1.0f), 
-            masses[i]/20.0f));
-        particles[i].trace.push_back(particles[i].position);
-        particles[i].init();
-    }
+    // Set up render objects for particles
+    ParticleBufferObject particleBufferObject;
+    particleBufferObject.initialize(n);
+
+    // Set up render objects for traces
+    TraceBufferObject traceBufferObject;
+    traceBufferObject.initialize(n);
     
-    // control simulation speed when playing it
-    double prevFrameTime = glfwGetTime();
+    // force rendering to take depth into account
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
+    
+    // mainloop variables
+    double prevSimFrameTime = glfwGetTime(); // last time we update simulation timestep
+    double prevLoopTime = glfwGetTime(); // last time opengl drew onto screen (mainloop)
     bool playSim = false;
+    bool disableTrace = false;
+    float scale = 1.0;
+    float zoom = 1.0;
+    
     // main render loop
     while (!glfwWindowShouldClose(window)) {
         double time = glfwGetTime();
-        if (playSim && time - prevFrameTime > dt*10) { // slowdown factor of 10
-            prevFrameTime = time;
-            currentParticleSet = (currentParticleSet + 1) % NUM_FILES;
-            updateParticles(currentParticleSet, particles);
-        }
+        processKeyboardInputs(window,time-prevLoopTime, camera);
 
+        // Load new simulation timestep if dt time has passed
+        if (playSim && time - prevSimFrameTime > dt) {
+            prevSimFrameTime = time;
+            currentParticleSet = (currentParticleSet + 1) % NUM_FILES;
+            updateParticles(currentParticleSet, bodies, combinedTraces);
+        }
+        
+        // Reset each frame
         glClearColor(0.05f, 0.05f, 0.08f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        
+        // Camera set up
+        basicShader.use();
+        basicShader.setMat4("view", camera.view);
+        basicShader.setMat4("projection", camera.projection);
+        particleShader.use();
+        particleShader.setMat4("view", camera.view);
+        particleShader.setMat4("projection", camera.projection);
+        
+        
+        // Draw particles using parallel instancing
+        std::vector<ParticleBufferObject::ParticleInstanceData> instances;
+        instances.reserve(n);
 
-        shader.use();
+        for (int i = 0; i < n; i++)
+        {
+            glm::mat4 model(1.0f);
+            model = glm::translate(model, particlePositionVec(bodies.position[i]));
+            float radius = scale * bodies.mass[i] / 20.0f;
+            model = glm::scale(model, glm::vec3(radius));
+            glm::vec3 color(i*1.0f/n, 0.0f, 1.0f); 
 
-        // rotating camera setup
-        camPos = glm::vec3(
-            camRadius * std::cos(camSpeed * time), 
-            camRadius * 0.2f,
-            camRadius * std::sin(camSpeed * time));
-        glm::mat4 view = glm::lookAt(camPos, camTarget, camUp);
-        float aspect = (WINDOW_HEIGHT == 0) ? 1.0f : (float)WINDOW_WIDTH / (float)WINDOW_HEIGHT;
-        glm::mat4 projection = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 1000.0f);
-        shader.setMat4("view", view);
-        shader.setMat4("projection", projection);
-
-        // draw particles and trace
-        for (Particle& p : particles) {
-            p.drawTrace(shader);
-            p.draw(shader);
+            instances.push_back({ model, color });
         }
 
-        // draw the 3d axis for reference
-        drawAxes3D(shader);
+        particleBufferObject.loadNewData(instances);
+        particleBufferObject.draw(instances.size());
 
+
+        // Draw trace using parallel instancing
+        if (!disableTrace) {
+            basicShader.use();
+            glm::mat4 model = glm::mat4(1.0f);
+            basicShader.setMat4("model", model);
+            basicShader.setVec3("color", glm::vec3(1.0f, 1.0f, 1.0f));
+            traceBufferObject.loadNewData(combinedTraces);
+            traceBufferObject.draw(combinedTraces.size());
+        }
+        
+        
+        
         // IMGUI scene
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
-
-        ImGui::Begin("Particle Loader");
+        
+        ImGui::Begin("Control Panel");
+        ImGui::Spacing();
+        ImGui::Text("Time Settings");
         if (ImGui::Button("Next Timestep")) {
             currentParticleSet = (currentParticleSet + 1) % NUM_FILES;
-            updateParticles(currentParticleSet, particles);
+            updateParticles(currentParticleSet, bodies, combinedTraces);
         }
-
-        ImGui::Checkbox("Play Simulation", &playSim);
+        
+        ImGui::Checkbox("Loop Simulation", &playSim);
+        
+        ImGui::Spacing();
+        ImGui::Text("Visual Settings");
+        ImGui::Checkbox("Disable Trace", &disableTrace);
+        ImGui::SliderFloat("Particle Scale", &scale, 0.1f, 20.0f, "ratio = %.1f");
+        
+        ImGui::Spacing();
+        ImGui::Text("Movement");
+        if (ImGui::SliderFloat("Zoom", &zoom, 0.5f, 10.0f, "zoom = %.1f")) {
+            camera.zoomCamera(zoom);
+        }
+        
+        
         ImGui::End();
-
+        
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
+        prevLoopTime = time;
+        
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
-
+    
     glfwTerminate();
     return 0;
 }
