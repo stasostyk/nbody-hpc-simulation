@@ -4,6 +4,7 @@
 #include "serialSolvers/serialSolver.hpp"
 #include "serialSolvers/serialReducedSolver.hpp"
 #include "mpiSolvers/mpiSolver.hpp"
+#include "mpiSolvers/mpiReducedSolver.hpp"
 #include "acceleration-accumulator.hpp"
 #include "body.hpp"
 #include "utils.hpp"
@@ -20,7 +21,7 @@
 void printHelp(char **argv) {
     std::cerr << "Usage: " << argv[0]
                 << " [inputFilename] [solver]\n";
-    std::cerr << "  solver: Serial SerialReduced MPI\n";
+    std::cerr << "  solver: Serial SerialReduced MPI MPIReduced\n";
     std::cerr << "NOTE! if using MPI solvers, run with: mpirun -n [procCount] ...\n";
 
     std::cerr << std::endl;
@@ -47,6 +48,8 @@ int main(int argc, char **argv) {
         solver = std::make_unique<SerialReducedSolver<DIM, EmptyAttributes>>(force);
     } else if (solverType == "MPI") {
         solver = std::make_unique<MPISolver<DIM, EmptyAttributes>>(force);
+    } else if (solverType == "MPIReduced") {
+        solver = std::make_unique<MPIReducedSolver<DIM, EmptyAttributes>>(force);
     } else {
         std::cerr << "ERROR: UNKNOWN SOLVER TYPE " << solverType << std::endl;
         printHelp(argv);

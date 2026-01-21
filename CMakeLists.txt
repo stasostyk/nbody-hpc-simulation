@@ -38,9 +38,6 @@ if(BUILD_SIMULATION)
 
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
 
-    add_executable(nbody_mpi src/nbody-mpi.cpp)
-    add_executable(nbody_mpi_reduced src/nbody-mpi-reduced.cpp)
-
     add_executable(generate src/generate-input.cpp)
     add_executable(compareOutputs src/compare-outputs.cpp)
 
@@ -56,13 +53,10 @@ if(BUILD_SIMULATION)
         target_link_libraries(barnes_hut_serial OpenMP::OpenMP_CXX)
         target_compile_definitions(barnes_hut_serial PRIVATE USE_OPENMP=1)
 
-        target_link_libraries(nbody_mpi OpenMP::OpenMP_CXX)
-        target_compile_definitions(nbody_mpi PRIVATE USE_OPENMP=1)
-
         message(STATUS "Executables built with OpenMP support")
     else()
         target_compile_definitions(barnes_hut_serial PRIVATE USE_OPENMP=0)
-        target_compile_definitions(nbody_mpi PRIVATE USE_OPENMP=0)
+
         message(STATUS "Executables built without OpenMP support")
     endif()
 

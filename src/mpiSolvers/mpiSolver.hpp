@@ -73,10 +73,6 @@ private:
         initMPIType(); // to be able to use MPI_VEC for Vecs
     }
 
-    bool canPrint() override {
-        return mpiRank == 0;
-    }
-
     // utility: block counts/displacements for an array of N elements across comm_sz
     void make_counts_displs(int N, int comm_sz) {
         counts.resize(comm_sz);
@@ -95,6 +91,11 @@ private:
         MPI_Allgatherv((this->bodies).position.data() + (this->bodies).localOffset(),
                         (this->bodies).localSize(), MPI_VEC, (this->bodies).position.data(),
                         counts.data(), displs.data(), MPI_VEC, MPI_COMM_WORLD);
+    }
+
+    void saveOutput(const std::string &filename) override {
+        if (mpiRank == 0)
+            utils::saveToFile<DIM>(filename, this->steps, this->dt, this->bodies, false);
     }
 
 };

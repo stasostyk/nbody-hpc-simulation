@@ -39,10 +39,8 @@ public:
         t.end();
         t.print();
 
-        if (canPrint()) {
-            std::string outputFinalFilename = outputFilePref + ".finalTimestep.out";
-            utils::saveToFile(outputFinalFilename, steps, dt, bodies, false);
-        }
+        std::string outputFinalFilename = outputFilePref + ".finalTimestep.out";
+        saveOutput(outputFinalFilename);
 
         finalize();
     }
@@ -62,6 +60,8 @@ protected:
         n = bodies.globalSize();
     }
 
-    virtual bool canPrint() { return true; } // in MPI case, only root process would print
-
+    virtual void saveOutput(const std::string &filename) {
+        utils::saveToFile<DIM>(filename, steps, dt, bodies, false);
+    }
+    
 };
