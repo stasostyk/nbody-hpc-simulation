@@ -22,7 +22,7 @@ public:
       : accelerationAccumulator(accelerationAccumulator) {}
 
 public:
-  void step(bodies<DIM, Attributes> &bodies, double dt) override {
+  void step(Bodies<DIM, Attributes> &bodies, double dt) override {
 
     size_t n = bodies.localSize();
     // k?_s are the slopes for position (ds/dt = v)

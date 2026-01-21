@@ -66,7 +66,7 @@ public:
 
   ~MPIAccumulatorReduced() { delete[] tmpData; }
 
-  void compute(bodies<DIM, Attributes> &bodies) override {
+  void compute(Bodies<DIM, Attributes> &bodies) override {
     // make forces equal to zero and prepare tmpData
     for (size_t i = 0; i < bodies.localSize(); i++) {
       _accelerations[i] = 0.;

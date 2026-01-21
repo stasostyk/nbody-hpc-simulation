@@ -1,7 +1,7 @@
 #pragma once
 
-#include "acceleration-accumulator.hpp"
-#include "forces/func.hpp"
+#include "../acceleration-accumulator.hpp"
+#include "../forces/func.hpp"
 
 template <int DIM, typename Attributes> 
 class SerialAccumulatorReduced : public AccelerationAccumulator<DIM, Attributes> {

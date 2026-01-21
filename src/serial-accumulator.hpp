@@ -15,7 +15,7 @@ public:
     _accelerations.resize(size);
   }
 
-  void compute(bodies<DIM, Attributes> &bodies) override {
+  void compute(Bodies<DIM, Attributes> &bodies) override {
 
     size_t n = bodies.localSize();
 

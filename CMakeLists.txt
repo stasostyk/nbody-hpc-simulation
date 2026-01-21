@@ -45,6 +45,8 @@ if(BUILD_SIMULATION)
     add_executable(nbody_mpi_reduced src/nbody-mpi-reduced.cpp)
     add_executable(generate src/generate-input.cpp)
 
+    add_executable(mainSimulation src/main.cpp)
+
     add_executable(barnes_hut_serial 
         src/barnes_hut_serial/main.cpp
         src/barnes_hut_serial/BHTree.cpp

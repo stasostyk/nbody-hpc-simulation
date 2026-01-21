@@ -24,7 +24,7 @@ public:
     _accelerations.resize(n);
   }
 
-  void compute(bodies<DIM, Attributes> &bodiesPassed) override {
+  void compute(Bodies<DIM, Attributes> &bodiesPassed) override {
     std::vector<Body<DIM>> bodies(n);
     for (int i = 0; i < n; i++) {
         bodies[i].bodyId = i;

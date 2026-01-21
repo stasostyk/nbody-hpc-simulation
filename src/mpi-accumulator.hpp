@@ -22,7 +22,7 @@ public:
     _accelerations.resize(localSize);
   }
 
-  void compute(bodies<DIM, Attributes> &bodies) override {
+  void compute(Bodies<DIM, Attributes> &bodies) override {
     // All tasks gather all positions (will be required for the next step)
     MPI_Allgatherv(bodies.position.data() + bodies.localOffset(),
                    bodies.localSize(), _MPI_VEC, bodies.position.data(),

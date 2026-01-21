@@ -46,7 +46,7 @@ void gatherAndSaveAllPositions(int mpiSize, int mpiRank, int n, int steps,
                                const std::vector<double> &masses,
                                const std::string &filetag) {
   // gather all final positions and velocities to root process
-  bodies<DIM, EmptyAttributes> final;
+  Bodies<DIM, EmptyAttributes> final;
 
   if (mpiRank == 0) {
     final.resize(n, n, 0);
@@ -88,7 +88,7 @@ void runMPIReduced(int argc, char **argv,
   //  utils::generateRandomToFile<DIM>("test1.in.out", 3, 1000, 0.01, 42);
   // }
 
-  bodies<DIM, EmptyAttributes> bodies;
+  Bodies<DIM, EmptyAttributes> bodies;
 
   int n;
   int steps;
@@ -182,7 +182,7 @@ void run3Charges(int argc, char **argv, int outputStride) {
   int mpiSize, mpiRank;
   allMPIInit(&argc, &argv, mpiSize, mpiRank);
 
-  bodies<DIM, forces::charge> bodies;
+  Bodies<DIM, forces::charge> bodies;
 
   int n;
   int steps;

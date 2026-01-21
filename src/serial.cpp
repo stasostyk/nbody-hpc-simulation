@@ -20,7 +20,7 @@ int main() {
   int n_steps;
   double dt;
 
-  bodies<DIM, EmptyAttributes> bodies;
+  Bodies<DIM, EmptyAttributes> bodies;
   // utils::readFromStream(std::cin, n_steps, dt, bodies);
   utils::readFromFile<DIM>("test1.in.out", n_steps, dt, bodies);
 

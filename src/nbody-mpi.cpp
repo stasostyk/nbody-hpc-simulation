@@ -63,7 +63,7 @@ int main(int argc, char** argv) {
     constexpr int outputStride = 1;
 
     const forces::force<DIM, EmptyAttributes> &force = forces::gravity<DIM>();
-    bodies<DIM, EmptyAttributes> bodies;
+    Bodies<DIM, EmptyAttributes> bodies;
 
     int mpiSize, mpiRank;
     allMPIInit(&argc, &argv, mpiSize, mpiRank);

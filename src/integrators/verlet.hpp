@@ -18,7 +18,7 @@ public:
   Verlet(AccelerationAccumulator<DIM, Attributes>& accelerationAccumulator)
       : accelerationAccumulator(accelerationAccumulator) {}
 
-  void step(bodies<DIM, Attributes> &bodies, double dt) override {
+  void step(Bodies<DIM, Attributes> &bodies, double dt) override {
 
     accelerationAccumulator.compute(bodies);
     size_t n = bodies.localSize();

@@ -34,7 +34,7 @@ int main(int argc, char* argv[]) {
     int n;
     int steps;
     double dt;
-    bodies<DIM, EmptyAttributes> bodies;
+    Bodies<DIM, EmptyAttributes> bodies;
 
     utils::generateRandomToFile<DIM>("test1.in.out", 1000, 1000, 0.01, 42);
     utils::readFromFile("test1.in.out", steps, dt, bodies);
