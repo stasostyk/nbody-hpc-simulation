@@ -39,8 +39,6 @@ public:
         for (const Body<dim> &body : _bodies) {
             root->insertBody(body);
         }
-        // root->calculateCentersOfMassRecursively();
-        // std::cout << "MAX DEPTH: " << root->getMaxDepth() << std::endl;
     }
 
     ~BHTree() = default;
@@ -58,7 +56,7 @@ private:
             centerOfMass.position = 0.;
             centerOfMass.velocity = 0.;
 
-            // TODO now assumes the bounds are square/cube
+            // Using one side length as length l used for Barnes Hut threshold s/d<theta.
             const double length = bounds.corner2[0] - bounds.corner1[0];
             lengthSqr = length * length;
 
@@ -67,18 +65,15 @@ private:
 
         void insertBody(const Body<dim> &body);
         void printInfoRecursively() const;
-        // void calculateCentersOfMassRecursively();
         Vec<dim> calculateForce(const Body<dim> &body, double theta, const forces::force<dim, Attributes> &force) const;
         int getMaxDepth();
 
     private:
         static constexpr int childrenCnt = 1 << dim;
 
-        void splitNode();
         void insertToChild(const Body<dim> &body);
         int getChildIndex(const Vec<dim> &position) const;
         void initChild(int childId);
-        // void calculateCenterOfMass();
         
         Box<dim> bounds;
         const int depth;
@@ -87,7 +82,6 @@ private:
         bool isEmptyNode; // doesn't have any bodies inside
         std::array<std::unique_ptr<Node>, childrenCnt> children;
         std::vector<int> activeChildren;
-        // std::vector<Body<dim>> bodies; // TODO probably no need to store all bodies
 
         // Center of mass of all bodies in the node.
         // Has averaged position and velocity.
