@@ -4,6 +4,7 @@
 #include <array>
 #include <functional>
 #include <cmath>
+#include <iostream>
 
 // Vector in our DIM-dimensional space
 template<int DIM>

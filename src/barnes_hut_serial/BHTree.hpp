@@ -6,6 +6,7 @@
 #include <iostream>
 
 #include "../bodies.hpp"
+#include "../body.hpp"
 #include "../vec.hpp"
 #include "../forces/func.hpp"
 
@@ -26,7 +27,7 @@ public:
 
 // Implementation of Barnes-Hut tree.
 // In 2D works as Quadtree, in 3D as Octree.
-template <int dim>
+template <int dim, typename Attributes>
 class BHTree {
 public:
 
@@ -44,7 +45,7 @@ public:
 
     ~BHTree() = default;
     void printInfo() const;
-    Vec<dim> calculateForce(const Body<dim>& b, double theta, const forces::force<dim> &force) const;
+    Vec<dim> calculateForce(const Body<dim>& body, double theta, const forces::force<dim, Attributes> &force) const;
 
 private:
 
@@ -67,7 +68,7 @@ private:
         void insertBody(const Body<dim> &body);
         void printInfoRecursively() const;
         // void calculateCentersOfMassRecursively();
-        Vec<dim> calculateForce(const Body<dim> &body, double theta, const forces::force<dim> &force) const;
+        Vec<dim> calculateForce(const Body<dim> &body, double theta, const forces::force<dim, Attributes> &force) const;
         int getMaxDepth();
 
     private:

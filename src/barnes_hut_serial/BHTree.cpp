@@ -1,7 +1,7 @@
 #include "BHTree.hpp"
 
-template<int dim>
-void BHTree<dim>::printInfo() const {
+template<int dim, typename Attributes>
+void BHTree<dim, Attributes>::printInfo() const {
     std::cout << "=========================================" << std::endl;
     std::cout << "BH Tree. dim = " << dim << std::endl;
     root->printInfoRecursively();
@@ -23,8 +23,8 @@ bool Box<dim>::isPointInside(const Vec<dim> &position) const {
     return true;
 }
 
-template<int dim>
-void BHTree<dim>::Node::insertBody(const Body<dim> &body) {
+template<int dim, typename Attributes>
+void BHTree<dim, Attributes>::Node::insertBody(const Body<dim> &body) {
     // std::cout << " Inserting body " << body.bodyId << ", node dep=" << depth << std::endl;
 
     // if (bodies.empty()) {
@@ -44,8 +44,8 @@ void BHTree<dim>::Node::insertBody(const Body<dim> &body) {
     insertToChild(body);
 }
 
-template <int dim>
-int BHTree<dim>::Node::getMaxDepth() {
+template <int dim, typename Attributes>
+int BHTree<dim, Attributes>::Node::getMaxDepth() {
     int dep = depth;
 
     if (!isLeaf) {
@@ -57,8 +57,8 @@ int BHTree<dim>::Node::getMaxDepth() {
     return dep;
 }
 
-template<int dim>
-void BHTree<dim>::Node::initChild(int childId) {
+template<int dim, typename Attributes>
+void BHTree<dim, Attributes>::Node::initChild(int childId) {
     Vec<dim> corner1;
     Vec<dim> corner2;
 
@@ -81,8 +81,8 @@ void BHTree<dim>::Node::initChild(int childId) {
     activeChildren.push_back(childId);  
 }
 
-template<int dim>
-void BHTree<dim>::Node::insertToChild(const Body<dim> &body) {
+template<int dim, typename Attributes>
+void BHTree<dim, Attributes>::Node::insertToChild(const Body<dim> &body) {
     int childId = getChildIndex(body.position);
 
     if (!children[childId]) {
@@ -101,8 +101,8 @@ void BHTree<dim>::Node::insertToChild(const Body<dim> &body) {
     // }
 }
 
-template<int dim>
-void BHTree<dim>::Node::splitNode() {
+template<int dim, typename Attributes>
+void BHTree<dim, Attributes>::Node::splitNode() {
     if (!isLeaf) {
         // Already split.
         return;
@@ -120,8 +120,8 @@ void BHTree<dim>::Node::splitNode() {
 }
 
 
-template<int dim>
-void BHTree<dim>::Node::printInfoRecursively() const {
+template<int dim, typename Attributes>
+void BHTree<dim, Attributes>::Node::printInfoRecursively() const {
     std::cout << "---" << std::endl;
     std::cout << "Node, depth = " << depth << std::endl;
     std::cout << " bounds from: ";
@@ -174,13 +174,13 @@ void BHTree<dim>::Node::printInfoRecursively() const {
 // }
 
 
-template <int dim>
-Vec<dim> BHTree<dim>::calculateForce(const Body<dim>& body, double theta, const forces::force<dim> &force) const {
+template <int dim, typename Attributes>
+Vec<dim> BHTree<dim, Attributes>::calculateForce(const Body<dim>& body, double theta, const forces::force<dim, Attributes> &force) const {
     return root->calculateForce(body, theta, force);
 }
 
-template <int dim>
-Vec<dim> BHTree<dim>::Node::calculateForce(const Body<dim>& body, double theta, const forces::force<dim> &force) const {
+template <int dim, typename Attributes>
+Vec<dim> BHTree<dim, Attributes>::Node::calculateForce(const Body<dim>& body, double theta, const forces::force<dim, Attributes> &force) const {
 
     if (isLeaf) {
         // Vec<dim> totalForce = 0.;
@@ -195,7 +195,11 @@ Vec<dim> BHTree<dim>::Node::calculateForce(const Body<dim>& body, double theta, 
 
         // in the leaf node there should be max one body, so center of mass is the body
         if (!isEmptyNode && centerOfMass.bodyId != body.bodyId) {
-            return force(body.position, body.mass, centerOfMass.position, centerOfMass.mass);
+            return force(
+                bodyCopy<dim, EmptyAttributes>(body.position, Vec<dim> (0.), body.mass, EmptyAttributes()),
+                bodyCopy<dim, EmptyAttributes>(centerOfMass.position, Vec<dim> (0.), centerOfMass.mass, EmptyAttributes())
+            );
+                // body.position, body.mass, centerOfMass.position, centerOfMass.mass);
         }
 
         return Vec<dim>(0.);
@@ -221,8 +225,13 @@ Vec<dim> BHTree<dim>::Node::calculateForce(const Body<dim>& body, double theta, 
 
 
         // Approximating far away bodies as one with computed center of mass.
-        return force(body.position, body.mass, centerOfMass.position, centerOfMass.mass);
-    } 
+        // return force(body.position, body.mass, centerOfMass.position, centerOfMass.mass);
+        return force(
+            bodyCopy<dim, EmptyAttributes>(body.position, Vec<dim> (0.), body.mass, EmptyAttributes()),
+            bodyCopy<dim, EmptyAttributes>(centerOfMass.position, Vec<dim> (0.), centerOfMass.mass, EmptyAttributes())
+        );
+    }
+
 
     Vec<dim> totalForce(0.);
     for (int childId : activeChildren) {
@@ -233,8 +242,8 @@ Vec<dim> BHTree<dim>::Node::calculateForce(const Body<dim>& body, double theta, 
     return totalForce;
 }
 
-template <int dim> 
-int BHTree<dim>::Node::getChildIndex(const Vec<dim> &position) const {
+template <int dim, typename Attributes>
+int BHTree<dim, Attributes>::Node::getChildIndex(const Vec<dim> &position) const {
     const Vec<dim> midPoint = (bounds.corner1 + bounds.corner2) * 0.5;
     int index = 0;
     for (int dimId = 0; dimId < dim; dimId++) {
@@ -248,9 +257,9 @@ int BHTree<dim>::Node::getChildIndex(const Vec<dim> &position) const {
 // -- Explicit template instantiations --
 
 // Instantiate for 2D
-template class BHTree<2>;
+template class BHTree<2, EmptyAttributes>;
 template class Box<2>;
 
 // Instantiate for 3D
-template class BHTree<3>;
+template class BHTree<3, EmptyAttributes>;
 template class Box<3>;
