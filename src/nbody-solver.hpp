@@ -23,7 +23,8 @@ public:
 
     void runSimulation(
         integrators::Integrator<DIM, Attributes> &integrator,
-        bool printTimer=true
+        const std::string &outputFilePref,
+        int outputFrequency = -1
     ) {
         Timer t;
         t.start();
@@ -34,8 +35,10 @@ public:
         }
 
         t.end();
-        if (printTimer)
-            t.print();
+        t.print();
+
+        std::string outputFinalFilename = outputFilePref + ".finalTimestep.out";
+        utils::saveToFile(outputFinalFilename, steps, dt, bodies, false);
     }
 
 protected:
@@ -54,6 +57,3 @@ protected:
     }
 
 };
-
-template class NBodySolver<2, EmptyAttributes>;
-template class NBodySolver<3, EmptyAttributes>;

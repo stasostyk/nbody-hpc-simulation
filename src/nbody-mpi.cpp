@@ -19,7 +19,7 @@
     #include <omp.h>
 #endif
 
-constexpr int DIM = 3;
+constexpr int DIM = 2;
 
 static MPI_Datatype MPI_VEC;
 
@@ -60,7 +60,7 @@ inline void allMPIFinalize() {
 }
 
 int main(int argc, char** argv) {
-    constexpr int outputStride = 1;
+    constexpr int outputStride = 10000000;
 
     const forces::force<DIM, EmptyAttributes> &force = forces::gravity<DIM>();
     Bodies<DIM, EmptyAttributes> bodies;
@@ -118,6 +118,9 @@ int main(int argc, char** argv) {
             }
         }
     }
+
+    if (mpiRank == 0)
+        utils::saveToFile("mpi.test1.finalStep.out", steps, dt, bodies, false);
 
     allMPIFinalize();
 }

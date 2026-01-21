@@ -2,6 +2,7 @@
 
 #include "nbody-solver.hpp"
 #include "serialSolvers/serialSolver.hpp"
+#include "serialSolvers/serialReducedSolver.hpp"
 #include "acceleration-accumulator.hpp"
 #include "body.hpp"
 #include "utils.hpp"
@@ -15,19 +16,44 @@
 
 #define DIM 2
 
-int main() {
-    const std::string inputFilename = "test1.in.out";
-    utils::generateRandomToFile<DIM>(inputFilename, 1000, 1000, 0.01, 42);
+void printHelp(char **argv) {
+    std::cerr << "Usage: " << argv[0]
+                << " [inputFilename] [solver]\n";
+    std::cerr << "  solver: Serial SerialReduced\n";
+
+    std::cerr << std::endl;
+}
+
+int main(int argc, char **argv) {
+    if (argc < 3) {
+        printHelp(argv);
+        return 1;
+    }
+
+    const std::string inputFilename = argv[1];
+    const std::string solverType = argv[2];
+
 
     // NOTE: Choose force.
     const forces::force<DIM, EmptyAttributes> &force = forces::gravity<DIM>();
 
-    // NOTE: Choose solver.
-    SerialSolver<DIM, EmptyAttributes> solver(force);
+    std::unique_ptr<NBodySolver<DIM, EmptyAttributes>> solver;
+    
+    if (solverType == "Serial") {
+        solver = std::make_unique<SerialSolver<DIM, EmptyAttributes>>(force);
+    } else if (solverType == "SerialReduced") {
+        solver = std::make_unique<SerialReducedSolver<DIM, EmptyAttributes>>(force);
+    } else {
+        std::cerr << "ERROR: UNKNOWN SOLVER TYPE" << std::endl;
+        printHelp(argv);
+        return 1;
+    }
+
+    // SerialSolver<DIM, EmptyAttributes> solver(force);
     
     // Init solver and accumulator.
-    solver.init(inputFilename);
-    AccelerationAccumulator<DIM, EmptyAttributes> &accumulator = solver.getAccumulator();
+    solver->init(inputFilename);
+    AccelerationAccumulator<DIM, EmptyAttributes> &accumulator = solver->getAccumulator();
 
     // NOTE: Choose integrator.
     integrators::Euler<DIM, EmptyAttributes> integrator(accumulator);
@@ -35,5 +61,5 @@ int main() {
     // integrators::Verlet<DIM, EmptyAttributes> integrator(accumulator);
     // integrators::RK4<DIM, EmptyAttributes> integrator(accumulator);
 
-    solver.runSimulation(integrator, true);
+    solver->runSimulation(integrator, solverType);
 }
