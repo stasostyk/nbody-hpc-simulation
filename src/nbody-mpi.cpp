@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <vector>
 #include <cmath>
+#include "adaptive_timestep.hpp"
 
 #include "acceleration-accumulator.hpp"
 #include "body.hpp"
@@ -13,6 +14,7 @@
 #include "integrators/rk4.hpp"
 #include "mpi-accumulator.hpp"
 #include "utils.hpp"
+#include <algorithm>
 
 constexpr int DIM = 3;
 
@@ -96,22 +98,57 @@ int main(int argc, char** argv) {
     // integrators::Sympletic<DIM, EmptyAttributes> integrator(accumulator);
     // integrators::Verlet<DIM, EmptyAttributes> integrator(accumulator);
     integrators::RK4<DIM, EmptyAttributes> integrator(accumulator);
+    
+    const double dt_max = dt;
+    const double T_end  = steps * dt_max;
 
-    for (int step = 0; step < steps; step++) {
-        integrator.step(bodies, dt);
+    double time = 0.0;
+    int step = 0;
 
-        if (step % outputStride == 0) {
-            MPI_Allgatherv(bodies.position.data() + bodies.localOffset(),
-                           bodies.localSize(), MPI_VEC, bodies.position.data(),
-                           counts.data(), displs.data(), MPI_VEC, MPI_COMM_WORLD);
+    std::vector<double> particle_dt(bodies.localSize(), dt_max);
+    int dbg = 0;
 
-            if (mpiRank == 0) {
-                // save for testing
-                utils::saveToFile("test1-MPI." + std::to_string(step) + ".out", 
-                    steps, dt, bodies, false);
-            }
+    for (int frame = 0; frame < steps; ++frame) {
+    const double t_target = (frame + 1) * dt_max;
+
+    while (time < t_target) {
+        accumulator.compute(bodies);
+
+        double local_dt = timestep::update_timesteps<DIM, EmptyAttributes>(
+            bodies, accumulator, dt_max, particle_dt);
+
+        double dt_global = local_dt;
+        MPI_Allreduce(&local_dt, &dt_global, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+
+        const double dt_step = std::min(dt_global, t_target - time);
+
+        integrator.step(bodies, dt_step);
+        time += dt_step;
+        if (mpiRank == 0 && frame == 0) {
+            double mn = particle_dt[0], mx = particle_dt[0], sum = 0.0;
+            for (double x : particle_dt) { mn = std::min(mn,x); mx = std::max(mx,x); sum += x; }
+            std::cout << "particle_dt: min=" << mn
+                        << " mean=" << (sum/particle_dt.size())
+                        << " max=" << mx << "\n";
         }
+
+    
+
     }
+
+
+    MPI_Allgatherv(bodies.position.data() + bodies.localOffset(),
+                    bodies.localSize(), MPI_VEC,
+                    bodies.position.data(),
+                    counts.data(), displs.data(),
+                    MPI_VEC, MPI_COMM_WORLD);
+
+    if (mpiRank == 0) {
+        utils::saveToFile("test1-MPI." + std::to_string(frame) + ".out",
+                        steps, dt_max, bodies, false);
+    }
+}
+
 
     allMPIFinalize();
 }

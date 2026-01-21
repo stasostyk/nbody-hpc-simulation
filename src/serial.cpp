@@ -12,6 +12,10 @@
 #include "utils.hpp"
 #include <cmath>
 #include <iostream>
+#include "adaptive_timestep.hpp"
+#include <vector>
+#include <algorithm>
+
 
 constexpr int DIM = 3;
 
@@ -33,12 +37,29 @@ int main() {
   // integrators::Verlet<DIM, EmptyAttributes> integrator(accumulator);
   integrators::RK4<DIM, EmptyAttributes> integrator(accumulator);
 
-  // time loop
+  const double dt_max = dt;
+  double time = 0.0;
+
+  std::vector<double> particle_dt(bodies.localSize(), dt_max);
+
+
   for (int step = 0; step < n_steps; ++step) {
-    integrator.step(bodies, dt);
+    const double t_target = (step + 1) * dt_max;
+
+    while (time < t_target) {
+      accumulator.compute(bodies);
+
+      const double dt_local =
+          timestep::update_timesteps<DIM, EmptyAttributes>(
+              bodies, accumulator, dt_max, particle_dt);
+
+      const double dt_step = std::min(dt_local, t_target - time);
+
+      integrator.step(bodies, dt_step);
+      time += dt_step;
+    }
   }
 
   utils::saveToStream(std::cout, n_steps, dt, bodies);
-
   return 0;
 }

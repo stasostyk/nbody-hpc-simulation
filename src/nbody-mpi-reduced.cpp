@@ -14,6 +14,8 @@
 #include "integrators/verlet.hpp"
 #include "mpi-accumulator-reduced.hpp"
 #include "utils.hpp"
+#include "adaptive_timestep.hpp"
+
 
 constexpr int DIM = 3; // dimensions of the problem (2D or 3D)
 
@@ -163,16 +165,38 @@ void runMPIReduced(int argc, char **argv,
   // integrators::Sympletic<DIM, EmptyAttributes> integrator(accumulator);
   // integrators::Verlet<DIM, EmptyAttributes> integrator(accumulator);
   integrators::RK4<DIM, EmptyAttributes> integrator(accumulator);
+  const double dt_max = dt;
+  double time = 0.0;
 
-  for (int step = 0; step < steps; step++) {
-    integrator.step(bodies, dt);
+  std::vector<double> particle_dt(bodies.localSize(), dt_max);
 
-    if (step % outputStride == 0)
-      gatherAndSaveAllPositions(mpiSize, mpiRank, n, steps, dt, bodies.position,
-                                bodies.velocity, masses, std::to_string(step/outputStride));
+  for (int frame = 0; frame < steps; ++frame) {
+  const double t_target = (frame + 1) * dt_max;
+
+  while (time < t_target) {
+    accumulator.compute(bodies);
+
+    double dt_local = timestep::update_timesteps<DIM, EmptyAttributes>(
+        bodies, accumulator, dt_max, particle_dt);
+
+    double dt_global = dt_local;
+    MPI_Allreduce(&dt_local, &dt_global, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+
+    const double dt_step = std::min(dt_global, t_target - time);
+
+    integrator.step(bodies, dt_step);
+    time += dt_step;
   }
 
-  gatherAndSaveAllPositions(mpiSize, mpiRank, n, steps, dt, bodies.position,
+  if (frame % outputStride == 0) {
+    gatherAndSaveAllPositions(mpiSize, mpiRank, n, steps, dt_max,
+                              bodies.position, bodies.velocity, masses,
+                              std::to_string(frame / outputStride));
+  }
+}
+
+
+  gatherAndSaveAllPositions(mpiSize, mpiRank, n, steps, dt_max, bodies.position,
                             bodies.velocity, masses, "final");
 
   allMPIFinalize();
@@ -296,8 +320,8 @@ void run3Charges(int argc, char **argv, int outputStride) {
 
 int main(int argc, char **argv) {
 
-  run3Charges(argc, argv, 20);
-  return 0;
+  //run3Charges(argc, argv, 20);
+  //return 0;
 
   forces::gravity<DIM> gravity{};
   const forces::force<DIM, EmptyAttributes> &force = gravity;
