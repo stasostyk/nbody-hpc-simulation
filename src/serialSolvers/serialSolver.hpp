@@ -1,3 +1,5 @@
+#pragma once
+
 #include "../nbody-solver.hpp"
 #include "serial-accumulator.hpp"
 
@@ -13,6 +15,5 @@ public:
             this->bodies.localSize(), this->force
         );
         return *(this->accumulator);
-        // return SerialAccumulator<DIM, Attributes>(this->bodies.localSize(), this->force);
     }
 };

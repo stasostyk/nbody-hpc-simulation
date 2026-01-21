@@ -1,3 +1,5 @@
+#pragma once
+
 #include "../nbody-solver.hpp"
 #include "serial-accumulator-reduced.hpp"
 

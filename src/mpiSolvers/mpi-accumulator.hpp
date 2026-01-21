@@ -2,6 +2,7 @@
 
 #include "../acceleration-accumulator.hpp"
 #include "../forces/func.hpp"
+#include "../omp_utils.hpp"
 #include <mpi.h>
 
 template <int DIM, typename Attributes> 
@@ -35,13 +36,13 @@ public:
                    _counts.data(), _offsets.data(), _MPI_VEC, MPI_COMM_WORLD);
 
     // make forces equal to zero
+    OMP_STATIC_LOOP
     for (size_t i = 0; i < bodies.localSize(); i++) {
-      for (int j = 0; j < DIM; j++) {
-        _accelerations[i][j] = 0.;
-      }
+      _accelerations[i] = 0.;
     }
 
     // compute all forces
+    OMP_STATIC_LOOP
     for (size_t i = 0; i < bodies.localSize(); i++) {
       size_t q = bodies.localOffset() + i;
       for (size_t k = 0; k < bodies.globalSize(); k++) {
@@ -51,10 +52,9 @@ public:
       }
     }
 
+    OMP_STATIC_LOOP
     for (size_t i = 0; i < bodies.localSize(); i++) {
-      for (int j = 0; j < DIM; j++) {
-        _accelerations[i][j] /= bodies.local(i).mass();
-      }
+      _accelerations[i] /= bodies.local(i).mass();
     }
   }
 

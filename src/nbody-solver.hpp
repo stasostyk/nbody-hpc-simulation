@@ -34,6 +34,12 @@ public:
         for (int step = 0; step < steps; step++) {
             integrator.step(bodies, dt);
             oneStep();
+
+            if (outputFrequency != -1 && (step % outputFrequency) == 0) {
+                std::string outputFinalFilename = 
+                    outputFilePref + ".step-" + std::to_string(step / outputFrequency) + ".out";
+                saveOutput(outputFinalFilename);
+            }
         }
 
         t.end();

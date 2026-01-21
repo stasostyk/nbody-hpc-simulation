@@ -91,8 +91,8 @@ int main(int argc, char **argv) {
 
     // NOTE: Choose integrator.
     // TODO choose integrator via command line param
-    integrators::Euler<DIM, EmptyAttributes> integrator(accumulator);
-    // integrators::Sympletic<DIM, EmptyAttributes> integrator(accumulator);
+    // integrators::Euler<DIM, EmptyAttributes> integrator(accumulator);
+    integrators::Sympletic<DIM, EmptyAttributes> integrator(accumulator);
     // integrators::Verlet<DIM, EmptyAttributes> integrator(accumulator);
     // integrators::RK4<DIM, EmptyAttributes> integrator(accumulator);
 

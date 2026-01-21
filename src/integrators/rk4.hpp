@@ -39,65 +39,58 @@ public:
 
     // Step 1: Compute k1
     accelerationAccumulator.compute(bodies);
+    OMP_STATIC_LOOP
     for (size_t i = 0; i < n; ++i) {
-      for (int d = 0; d < DIM; ++d) {
-        k1_s[i][d] = bodies.local(i).vel()[d];
-        k1_v[i][d] = accelerationAccumulator.accel(i)[d];
-      }
+      k1_s[i] = bodies.local(i).vel();
+      k1_v[i] = accelerationAccumulator.accel(i);
     }
 
     // Step 2: Compute k2
     // we move the system forward by dt/2 using k1 slopes
+    OMP_STATIC_LOOP
     for (size_t i = 0; i < n; ++i) {
-      for (int d = 0; d < DIM; ++d) {
-        bodies.local(i).pos()[d] = posOriginal[i][d] + (0.5 * dt) * k1_s[i][d];
-        bodies.local(i).vel()[d] = velOriginal[i][d] + (0.5 * dt) * k1_v[i][d];
-      }
+      bodies.local(i).pos() = posOriginal[i] + (0.5 * dt) * k1_s[i];
+      bodies.local(i).vel() = velOriginal[i] + (0.5 * dt) * k1_v[i];
     }
 
     accelerationAccumulator.compute(bodies); // a at s^(2)
 
+    OMP_STATIC_LOOP
     for (size_t i = 0; i < n; ++i) {
-      for (int d = 0; d < DIM; ++d) {
-        k2_s[i][d] = bodies.local(i).vel()[d];
-        k2_v[i][d] = accelerationAccumulator.accel(i)[d];
-      }
+      k2_s[i] = bodies.local(i).vel();
+      k2_v[i] = accelerationAccumulator.accel(i);
     }
 
     // Step 3: compute k3, again at dt/2 but now using k2 slopes
     // this improves the midpoint estimate
+    OMP_STATIC_LOOP
     for (size_t i = 0; i < n; ++i) {
-      for (int d = 0; d < DIM; ++d) {
-        bodies.local(i).pos()[d] = posOriginal[i][d] + (0.5 * dt) * k2_s[i][d];
-        bodies.local(i).vel()[d] = velOriginal[i][d] + (0.5 * dt) * k2_v[i][d];
-      }
+      bodies.local(i).pos() = posOriginal[i] + (0.5 * dt) * k2_s[i];
+      bodies.local(i).vel() = velOriginal[i] + (0.5 * dt) * k2_v[i];
     }
 
     accelerationAccumulator.compute(bodies);
 
+    OMP_STATIC_LOOP
     for (size_t i = 0; i < n; ++i) {
-      for (int d = 0; d < DIM; ++d) {
-        k3_s[i][d] = bodies.local(i).vel()[d];
-        k3_v[i][d] = accelerationAccumulator.accel(i)[d];
-      }
+      k3_s[i] = bodies.local(i).vel();
+      k3_v[i] = accelerationAccumulator.accel(i);
     }
 
     // Step 4: compute k4 using a full timestep with k3
     // this gives the slope at the end of the timestep
+    OMP_STATIC_LOOP
     for (size_t i = 0; i < n; ++i) {
-      for (int d = 0; d < DIM; ++d) {
-        bodies.local(i).pos()[d] = posOriginal[i][d] + dt * k3_s[i][d];
-        bodies.local(i).vel()[d] = velOriginal[i][d] + dt * k3_v[i][d];
-      }
+      bodies.local(i).pos() = posOriginal[i] + dt * k3_s[i];
+      bodies.local(i).vel() = velOriginal[i] + dt * k3_v[i];
     }
 
     accelerationAccumulator.compute(bodies);
 
+    OMP_STATIC_LOOP
     for (size_t i = 0; i < n; ++i) {
-      for (int d = 0; d < DIM; ++d) {
-        k4_s[i][d] = bodies.local(i).vel()[d];
-        k4_v[i][d] = accelerationAccumulator.accel(i)[d];
-      }
+      k4_s[i] = bodies.local(i).vel();
+      k4_v[i] = accelerationAccumulator.accel(i);
     }
 
     std::copy_n(posOriginal.begin(), n, bodies.position.begin() + bodies.localOffset());
@@ -106,13 +99,12 @@ public:
     // Final and actual update
     // we combine all four slopes using RK4 weights:
     // k1 + 2*k2 + 2*k3 + k4, divided by 6
+    OMP_STATIC_LOOP
     for (size_t i = 0; i < n; ++i) {
-      for (int d = 0; d < DIM; ++d) {
-        bodies.local(i).vel()[d] += (dt / 6.0) * (k1_v[i][d] + 2.0 * k2_v[i][d] +
-                                            2.0 * k3_v[i][d] + k4_v[i][d]);
-        bodies.local(i).pos()[d] += (dt / 6.0) * (k1_s[i][d] + 2.0 * k2_s[i][d] +
-                                            2.0 * k3_s[i][d] + k4_s[i][d]);
-      }
+      bodies.local(i).vel() += (dt / 6.0) * (k1_v[i] + 2.0 * k2_v[i] +
+                                          2.0 * k3_v[i] + k4_v[i]);
+      bodies.local(i).pos() += (dt / 6.0) * (k1_s[i] + 2.0 * k2_s[i] +
+                                          2.0 * k3_s[i] + k4_s[i]);
     }
   }
 };

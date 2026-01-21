@@ -2,6 +2,7 @@
 
 #include "../acceleration-accumulator.hpp"
 #include "integrator.hpp"
+#include "../omp_utils.hpp"
 
 namespace integrators {
 
@@ -22,21 +23,22 @@ public:
 
     accelerationAccumulator.compute(bodies);
     size_t n = bodies.localSize();
+
+    OMP_STATIC_LOOP
     for (size_t i = 0; i < n; ++i) {
-      for (int d = 0; d < DIM; ++d) {
-        // we update velocity only by half step
-        bodies.local(i).vel()[d] += accelerationAccumulator.accel(i)[d] * 0.5 * dt;
-        // then we update position using this half step velocity
-        bodies.local(i).pos()[d] += bodies.local(i).vel()[d] * dt;
-      }
+      // we update velocity only by half step
+      bodies.local(i).vel() += accelerationAccumulator.accel(i) * 0.5 * dt;
+      // then we update position using this half step velocity
+      bodies.local(i).pos() += bodies.local(i).vel() * dt;
     }
+
     // recompute acceleration with new positions
     accelerationAccumulator.compute(bodies);
+
+    OMP_STATIC_LOOP
     for (size_t i = 0; i < n; ++i) {
-      for (int d = 0; d < DIM; ++d) {
-        // complete velocity update with the new acceleration
-        bodies.local(i).vel()[d] += accelerationAccumulator.accel(i)[d] * 0.5 * dt;
-      }
+      // complete velocity update with the new acceleration
+      bodies.local(i).vel() += accelerationAccumulator.accel(i) * 0.5 * dt;
     }
   }
 };
