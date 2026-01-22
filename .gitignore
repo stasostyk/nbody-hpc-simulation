@@ -1,4 +1,6 @@
 build*/**
+tests/measure-times/old-results/**
+**/__pycache__/**
 
 # VSCode settings
 .vscode/**

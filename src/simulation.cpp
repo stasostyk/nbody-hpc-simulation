@@ -21,7 +21,7 @@
     #include <omp.h>
 #endif
 
-#define DIM 2
+#define DIM 3
 
 void printHelp(char **argv) {
     std::cerr << "Usage: " << argv[0]
