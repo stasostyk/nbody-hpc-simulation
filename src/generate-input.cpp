@@ -12,10 +12,10 @@ int main(int argc, char **argv) {
     }
 
     std::string filename = argv[1];
-    int n     = (argc > 1) ? std::atoi(argv[2]) : 100;
-    int steps = (argc > 2) ? std::atoi(argv[3]) : 10;
-    double dt = (argc > 3) ? std::atof(argv[4]) : 0.01;
-    int seed  = (argc > 4) ? std::atoi(argv[5]) : 42;
+    int n     = (argc > 2) ? std::atoi(argv[2]) : 100;
+    int steps = (argc > 3) ? std::atoi(argv[3]) : 10;
+    double dt = (argc > 4) ? std::atof(argv[4]) : 0.01;
+    int seed  = (argc > 5) ? std::atoi(argv[5]) : 42;
 
     utils::generateRandomToFile<DIM>(filename, n, steps, dt, seed);
 
