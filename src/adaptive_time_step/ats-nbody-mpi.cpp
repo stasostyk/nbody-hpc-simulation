@@ -3,17 +3,17 @@
 #include <vector>
 #include <cmath>
 
-#include "acceleration-accumulator.hpp"
-#include "body.hpp"
-#include "forces/gravity.hpp"
-#include "integrators/euler.hpp"
-#include "integrators/integrator.hpp"
-#include "integrators/sympletic.hpp"
-#include "integrators/verlet.hpp"
-#include "integrators/rk4.hpp"
-#include "mpi-accumulator.hpp"
-#include "utils.hpp"
-#include "timer.hpp"
+#include "../acceleration-accumulator.hpp"
+#include "../body.hpp"
+#include "../forces/gravity.hpp"
+#include "../integrators/euler.hpp"
+#include "../integrators/integrator.hpp"
+#include "../integrators/sympletic.hpp"
+#include "../integrators/verlet.hpp"
+#include "../integrators/rk4.hpp"
+#include "../mpiSolvers/mpi-accumulator.hpp"
+#include "../utils.hpp"
+#include "../timer.hpp"
 #include <algorithm>
 #include <iostream>
 #include "adaptive_dt.hpp"
@@ -66,7 +66,7 @@ int main(int argc, char** argv) {
     constexpr int outputStride = 1;
 
     const forces::force<DIM, EmptyAttributes> &force = forces::gravity<DIM>();
-    bodies<DIM, EmptyAttributes> bodies;
+    Bodies<DIM, EmptyAttributes> bodies;
 
     int mpiSize, mpiRank;
     allMPIInit(&argc, &argv, mpiSize, mpiRank);

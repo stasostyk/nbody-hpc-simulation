@@ -5,15 +5,15 @@
 #include <mpi.h>
 #include <vector>
 
-#include "body.hpp"
-#include "forces/coulomb.hpp"
-#include "forces/gravity.hpp"
-#include "integrators/euler.hpp"
-#include "integrators/rk4.hpp"
-#include "integrators/sympletic.hpp"
-#include "integrators/verlet.hpp"
-#include "mpi-accumulator-reduced.hpp"
-#include "utils.hpp"
+#include "../body.hpp"
+#include "../forces/coulomb.hpp"
+#include "../forces/gravity.hpp"
+#include "../integrators/euler.hpp"
+#include "../integrators/rk4.hpp"
+#include "../integrators/sympletic.hpp"
+#include "../integrators/verlet.hpp"
+#include "../mpiSolvers/mpi-accumulator-reduced.hpp"
+#include "../utils.hpp"
 
 #include "adaptive_dt.hpp"
 
@@ -49,7 +49,7 @@ inline void allMPIFinalize() {
 
 void gatherAndSaveAllPositions(int mpiSize, int mpiRank, int n, int steps, double dt, const std::vector<Vec<DIM>> &localPositions,
                                const std::vector<Vec<DIM>> &localVelocities, const std::vector<double> &masses, const std::string &filetag) {
-  bodies<DIM, EmptyAttributes> final;
+  Bodies<DIM, EmptyAttributes> final;
 
   if (mpiRank == 0) {
     final.resize(n, n, 0);
@@ -82,7 +82,7 @@ void runMPIReduced(int argc, char **argv, const forces::force<DIM, EmptyAttribut
   int mpiSize, mpiRank;
   allMPIInit(&argc, &argv, mpiSize, mpiRank);
 
-  bodies<DIM, EmptyAttributes> bodies;
+  Bodies<DIM, EmptyAttributes> bodies;
   std::vector<EmptyAttributes> attributes;
 
   int n;
@@ -236,7 +236,7 @@ void run3Charges(int argc, char **argv, int outputStride) {
   int mpiSize, mpiRank;
   allMPIInit(&argc, &argv, mpiSize, mpiRank);
 
-  bodies<DIM, forces::charge> bodies;
+  Bodies<DIM, forces::charge> bodies;
 
   int n;
   int steps;

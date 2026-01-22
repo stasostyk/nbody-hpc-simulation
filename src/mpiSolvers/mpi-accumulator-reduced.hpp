@@ -1,7 +1,8 @@
 #pragma once
 
-#include "acceleration-accumulator.hpp"
-#include "forces/func.hpp"
+#include "../acceleration-accumulator.hpp"
+#include "../forces/func.hpp"
+#include "../omp_utils.hpp"
 #include <mpi.h>
 #include <optional>
 
@@ -66,8 +67,9 @@ public:
 
   ~MPIAccumulatorReduced() { delete[] tmpData; }
 
-  void compute(bodies<DIM, Attributes> &bodies) override {
+  void compute(Bodies<DIM, Attributes> &bodies) override {
     // make forces equal to zero and prepare tmpData
+    OMP_STATIC_LOOP
     for (size_t i = 0; i < bodies.localSize(); i++) {
       _accelerations[i] = 0.;
       tmpPos[i] = bodies.local(i).pos();
@@ -76,6 +78,7 @@ public:
     }
 
     // first, compute forces due to interactions among local particles
+    OMP_DYNAMIC_LOOP
     for (size_t locI = 0; locI < bodies.localSize(); locI++) {
       int glbI = _mpiRank + locI * _mpiSize;
       for (size_t locJ = locI + 1; locJ < bodies.localSize(); locJ++) {
@@ -101,8 +104,9 @@ public:
       int owner = (_mpiRank + phase) % _mpiSize;
 
       // compute interactions between local particles and the received ones
-      for (size_t locI = 0, glbI = _mpiRank; locI < bodies.localSize();
-           locI++, glbI += _mpiSize) {
+      OMP_DYNAMIC_LOOP
+      for (size_t locI = 0; locI < bodies.localSize(); locI++) {
+        size_t glbI = _mpiRank + locI * _mpiSize;
         // find first global index > glbI that belongs to owner
         if (auto glbJopt = first_index_gt(glbI, owner, _mpiSize, _massesAll.size())) {
             size_t glbJ = glbJopt.value();
@@ -132,10 +136,10 @@ public:
                          source, 98, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
     // add the tmpForces that were just received
+    OMP_STATIC_LOOP
     for (size_t i = 0; i < bodies.localSize(); i++) {
       _accelerations[i] += tmpAccel[i];
-      for (int j = 0; j < DIM; j++)
-        _accelerations[i][j] /= _massesAll[_mpiRank + i * _mpiSize];
+      _accelerations[i] /= _massesAll[_mpiRank + i * _mpiSize];
     }
   }
 

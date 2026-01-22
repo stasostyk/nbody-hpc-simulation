@@ -1,6 +1,7 @@
 #pragma once
+
 #include <array>
-#include "vec.hpp"
+#include "../vec.hpp"
 
 template<size_t dim>
 struct Body

@@ -54,7 +54,7 @@ glm::vec3 particlePositionVec(Vec<DIM>& position) {
     return glm::vec3(position[0], position[1], DIM==3?position[2]:0.0f);
 }
 
-void updateParticles(int index, bodies<DIM>& bodies, std::vector<glm::vec3>& combinedTraces) {
+void updateParticles(int index, Bodies<DIM>& bodies, std::vector<glm::vec3>& combinedTraces) {
     double dt;
     int steps;
     utils::readFromFile(FILE_PATH+std::to_string(index)+".out", steps, dt, bodies, false);
@@ -120,7 +120,7 @@ int main() {
     double dt;
     int steps;
     std::vector<glm::vec3> combinedTraces; // all combined to improve performance
-    bodies<DIM> bodies;
+    Bodies<DIM> bodies;
     
     utils::readFromFile(FILE_PATH + "0.out", steps, dt, bodies, false);
     int n = bodies.position.size();

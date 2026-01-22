@@ -4,8 +4,8 @@
 #include <cmath>
 #include <limits>
 
-#include "bodies.hpp"
-#include "vec.hpp"
+#include "../body.hpp"
+#include "../vec.hpp"
 
 template <int DIM>
 inline double vec_norm(const Vec<DIM> &v) {
@@ -32,7 +32,7 @@ double compute_local_dt_raw(const Bodies &b, const Acc &acc,
 
 
 template <int DIM, typename Attributes, typename Accumulator>
-inline double compute_local_dt(const bodies<DIM, Attributes> &b, const Accumulator &acc,
+inline double compute_local_dt(const Bodies<DIM, Attributes> &b, const Accumulator &acc,
                                double dt_prev, double dt_max, double dt_min,
                                double eps_v, double v_floor, double a_floor,
                                double max_growth) {

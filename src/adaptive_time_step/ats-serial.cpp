@@ -1,16 +1,16 @@
-#include "body.hpp"
-#include "forces/gravity.hpp"
-#include "integrators/euler.hpp"
-#include "integrators/rk4.hpp"
-#include "integrators/sympletic.hpp"
-#include "integrators/verlet.hpp"
+#include "../body.hpp"
+#include "../forces/gravity.hpp"
+#include "../integrators/euler.hpp"
+#include "../integrators/rk4.hpp"
+#include "../integrators/sympletic.hpp"
+#include "../integrators/verlet.hpp"
 #ifdef REDUCED
-#include "serial-accumulator-reduced.hpp"
+#include "../serialSolvers/serial-accumulator-reduced.hpp"
 #else
-#include "serial-accumulator.hpp"
+#include "../serialSolvers/serial-accumulator.hpp"
 #endif
-#include "utils.hpp"
-#include "timer.hpp"
+#include "../utils.hpp"
+#include "../timer.hpp"
 #include "adaptive_dt.hpp"
 #include <cmath>
 #include <iostream>
@@ -22,7 +22,7 @@ int main() {
   int n_steps;
   double dt;
 
-  bodies<DIM, EmptyAttributes> bodies;
+  Bodies<DIM, EmptyAttributes> bodies;
   utils::readFromFile<DIM>("test1.in.out", n_steps, dt, bodies);
 
   forces::gravity<DIM> force;
