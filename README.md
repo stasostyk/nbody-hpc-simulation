@@ -5,11 +5,14 @@ It refers to the challenge of predicting the motion of bodies over time and how 
 
 This project contains multiple implementations of the N-body problem for comparison between serial, parallel, and reduced versions of the algorithm. 
 
-Using the generated data, a visualization tool is provided using OpenGL, GLFW, and DearImGUI to show the particles. It reads the generated files (for easier cluster offloading in the future) and allows for full interactive movement around and into the particle mesh. Rendering is done using fully parallelized buffer instancing, meaning it can easily handle even *100,000* particles at a time! 
+Using the generated data, a visualization tool is provided using OpenGL, GLFW, and DearImGUI to show the particles. It reads the generated files (for easier cluster offloading in the future) and allows for full interactive movement around and into the particle mesh. Rendering is done using fully parallelized buffer instancing, meaning it can easily handle even *1,000,000* particles at a time! 
 * Use the WASD keys to move around the mesh using in spherical coordinates.
 * Use the "Zoom" slider to move into the mesh or zoom out.
 
-![visualization](images/vis.png)
+<p align="center">
+  <img src="images/vis.png" width="45%" />
+  <img src="images/swarm.png" width="45%" />
+</p>
 
 ## Building
 
