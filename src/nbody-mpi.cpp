@@ -2,7 +2,6 @@
 #include <assert.h>
 #include <vector>
 #include <cmath>
-#include "adaptive_timestep.hpp"
 
 #include "acceleration-accumulator.hpp"
 #include "body.hpp"
@@ -14,16 +13,14 @@
 #include "integrators/rk4.hpp"
 #include "mpi-accumulator.hpp"
 #include "utils.hpp"
-<<<<<<< Updated upstream
-#include <algorithm>
-=======
 #include "timer.hpp"
+#include <algorithm>
+#include <iostream>
 #include "adaptive_dt.hpp"
 
 #if USE_OPENMP
     #include <omp.h>
 #endif
->>>>>>> Stashed changes
 
 constexpr int DIM = 3;
 
@@ -107,64 +104,7 @@ int main(int argc, char** argv) {
     // integrators::Sympletic<DIM, EmptyAttributes> integrator(accumulator);
     // integrators::Verlet<DIM, EmptyAttributes> integrator(accumulator);
     integrators::RK4<DIM, EmptyAttributes> integrator(accumulator);
-    
-    const double dt_max = dt;
-    const double T_end  = steps * dt_max;
 
-<<<<<<< Updated upstream
-    double time = 0.0;
-    double next_output_time = dt_max;
-    int frame = 0;
-
-    std::vector<double> particle_dt(bodies.localSize(), dt_max);
-
-    while (time + 1e-15 < T_end) {
-        accumulator.compute(bodies);
-
-        double local_dt =
-            timestep::update_timesteps<DIM, EmptyAttributes>(
-                bodies, accumulator, dt_max, particle_dt);
-
-        double dt_global = local_dt;
-        MPI_Allreduce(&local_dt, &dt_global, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
-
-        // propose adaptive step
-        double dt_step = std::min(dt_global, T_end - time);
-
-        // if we'd cross the next output time, land exactly on it
-        dt_step = std::min(dt_step, next_output_time - time);
-
-        // safety (floating point edge)
-        if (dt_step < 0.0) dt_step = 0.0;
-
-        // advance (only if positive)
-        if (dt_step > 0.0) {
-            integrator.step(bodies, dt_step);
-            time += dt_step;
-        } else {
-            // already at an output time within tolerance
-            time = next_output_time;
-        }
-
-        // catch-up outputs
-        while (frame < steps && time >= next_output_time - 1e-12 * dt_max) {
-
-            MPI_Allgatherv(
-                bodies.position.data() + bodies.localOffset(),
-                bodies.localSize(), MPI_VEC,
-                bodies.position.data(),
-                counts.data(), displs.data(),
-                MPI_VEC, MPI_COMM_WORLD
-            );
-
-            if (mpiRank == 0) {
-                utils::saveToFile("test1-MPI." + std::to_string(frame) + ".out",
-                                steps, dt_max, bodies, false);
-            }
-
-            next_output_time = std::min(next_output_time + dt_max, T_end);
-            frame++;
-=======
     const double dt0 = dt;
     const double t_end = dt0 * static_cast<double>(steps);
 
@@ -176,7 +116,7 @@ int main(int argc, char** argv) {
     const double max_growth = 1.5;
 
     double time = 0.0;
-    const int out_every = 10;
+    const int out_every = 1;
     double next_out = dt0 * out_every;
     int frame = 0;
 
@@ -200,8 +140,30 @@ int main(int argc, char** argv) {
 
     while (time < t_end && !time_reached(time, t_end)) {
     double dt_step = dt_curr;
-    dt_step = std::min(dt_step, t_end - time);
-    dt_step = std::min(dt_step, next_out - time);
+    const double to_end = std::max(0.0, t_end - time);
+    const double to_out = std::max(0.0, next_out - time);
+    dt_step = std::min(dt_step, to_end);
+    dt_step = std::min(dt_step, to_out);
+
+    if (dt_step <= 0.0) {
+    if (time_reached(time, next_out)) {
+        if (frame % outputStride == 0) {
+        MPI_Allgatherv(bodies.position.data() + bodies.localOffset(),
+                        bodies.localSize(), MPI_VEC, bodies.position.data(),
+                        counts.data(), displs.data(), MPI_VEC, MPI_COMM_WORLD);
+        MPI_Allgatherv(bodies.velocity.data() + bodies.localOffset(),
+                        bodies.localSize(), MPI_VEC, bodies.velocity.data(),
+                        counts.data(), displs.data(), MPI_VEC, MPI_COMM_WORLD);
+        if (mpiRank == 0) utils::saveToFile("test1-MPI." + std::to_string(frame) + ".out",
+                            steps, dt0, bodies, false);
+        }
+        ++frame;
+        next_out = std::min(t_end, dt0 * static_cast<double>(frame + 1));
+        continue;
+    }
+    break;
+    }
+
 
     integrator.step(bodies, dt_step);
     time += dt_step;
@@ -236,7 +198,6 @@ int main(int argc, char** argv) {
         if (mpiRank == 0) {
             utils::saveToFile("test1-MPI." + std::to_string(frame) + ".out",
                             steps, dt0, bodies, false);
->>>>>>> Stashed changes
         }
         }
 
@@ -247,16 +208,5 @@ int main(int argc, char** argv) {
 
 
 
-
-    if (mpiRank == 0 && frame != steps) {
-        std::cerr << "Warning: produced " << frame
-                << " frames, expected " << steps << "\n";
-    }
-
-
-
-
-
     allMPIFinalize();
-    return 0;
 }
