@@ -14,8 +14,6 @@
 #include "integrators/verlet.hpp"
 #include "mpi-accumulator-reduced.hpp"
 #include "utils.hpp"
-#include "adaptive_timestep.hpp"
-
 
 #include "adaptive_dt.hpp"
 
@@ -144,64 +142,6 @@ void runMPIReduced(int argc, char **argv,
     }
   }
 
-<<<<<<< Updated upstream
-  MPIAccumulatorReduced<DIM, EmptyAttributes> accumulator(
-      MPI_VEC, n / mpiSize, mpiSize, mpiRank, masses, force, attributes);
-  // integrators::Euler<DIM, EmptyAttributes> integrator(accumulator);
-  // integrators::Sympletic<DIM, EmptyAttributes> integrator(accumulator);
-  // integrators::Verlet<DIM, EmptyAttributes> integrator(accumulator);
-  integrators::RK4<DIM, EmptyAttributes> integrator(accumulator);
-  const double dt_max = dt;
-  const double T_end  = steps * dt_max;
-
-  double time = 0.0;
-  double next_output_time = dt_max;
-  int frame = 0;              // counts output times hit: 0..steps-1
-
-  std::vector<double> particle_dt(bodies.localSize(), dt_max);
-
-  while (time + 1e-15 < T_end) {
-    accumulator.compute(bodies);
-
-    double dt_local = timestep::update_timesteps<DIM, EmptyAttributes>(
-        bodies, accumulator, dt_max, particle_dt);
-
-    double dt_global = dt_local;
-    MPI_Allreduce(&dt_local, &dt_global, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
-
-    double dt_step = dt_global;
-
-    dt_step = std::min(dt_step, T_end - time);
-
-    bool do_output = false;
-    if (time + dt_step >= next_output_time - 1e-15) {
-      dt_step = std::max(0.0, next_output_time - time);
-      do_output = true;
-    }
-
-    if (dt_step > 0.0) {
-      integrator.step(bodies, dt_step);
-      time += dt_step;
-    } else {
-      time = next_output_time;
-    }
-
-    if (do_output) {
-      // Save only every outputStride frames
-      if (frame % outputStride == 0) {
-        const double dt_save = dt_max * outputStride;
-
-        gatherAndSaveAllPositions(mpiSize, mpiRank, n, steps, dt_save,
-                                  bodies.position, bodies.velocity, masses,
-                                  std::to_string(frame / outputStride));
-      }
-
-      next_output_time += dt_max;
-      frame++;
-    }
-  }
-
-=======
   MPIAccumulatorReduced<DIM, EmptyAttributes> accumulator(MPI_VEC, locN, mpiSize,
                                                           mpiRank, masses, force,
                                                           attributes);
@@ -265,7 +205,6 @@ void runMPIReduced(int argc, char **argv,
 
   gatherAndSaveAllPositions(mpiSize, mpiRank, n, steps, dt0, bodies.position,
                             bodies.velocity, masses, "final");
->>>>>>> Stashed changes
 
   allMPIFinalize();
 }
@@ -376,13 +315,6 @@ void run3Charges(int argc, char **argv, int outputStride) {
 }
 
 int main(int argc, char **argv) {
-<<<<<<< Updated upstream
-
-  //run3Charges(argc, argv, 20);
-  //return 0;
-
-=======
->>>>>>> Stashed changes
   forces::gravity<DIM> gravity{};
   const forces::force<DIM, EmptyAttributes> &force = gravity;
 
