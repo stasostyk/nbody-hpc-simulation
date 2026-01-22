@@ -9,59 +9,12 @@
 #include "integrators/rk4.hpp"
 #include "mpi-accumulator-reduced.hpp"
 #include "utils.hpp"
-<<<<<<< Updated upstream
-#include <cmath>
-#include <iostream>
-#include "adaptive_timestep.hpp"
-#include <vector>
-#include <algorithm>
-
-
-=======
 #include "adaptive_dt.hpp"
 
->>>>>>> Stashed changes
 constexpr int DIM = 3;
 
 static MPI_Datatype MPI_VEC;
 
-<<<<<<< Updated upstream
-  bodies<DIM, EmptyAttributes> bodies;
-  utils::readFromStream(std::cin, n_steps, dt, bodies);
-
-  forces::gravity<DIM> force;
-#ifdef REDUCED
-  SerialAccumulatorReduced<DIM, EmptyAttributes> accumulator(bodies.localSize(), force);
-#else
-  SerialAccumulator accumulator(bodies.localSize(), force);
-#endif
-  // integrators::Euler<DIM, EmptyAttributes> integrator(accumulator);
-  // integrators::Sympletic<DIM, EmptyAttributes> integrator(accumulator);
-  // integrators::Verlet<DIM, EmptyAttributes> integrator(accumulator);
-  integrators::RK4<DIM, EmptyAttributes> integrator(accumulator);
-
-  const double dt_max = dt;
-  const double T_end  = n_steps * dt_max;
-
-  double time = 0.0;
-  std::vector<double> particle_dt(bodies.localSize(), dt_max);
-
-  while (time + 1e-15 < T_end) {
-    accumulator.compute(bodies);
-
-    const double dt_local =
-        timestep::update_timesteps<DIM, EmptyAttributes>(
-            bodies, accumulator, dt_max, particle_dt);
-
-    const double dt_step = std::min(dt_local, T_end - time);
-
-    integrator.step(bodies, dt_step);
-    time += dt_step;
-  }
-
-
-  utils::saveToStream(std::cout, n_steps, dt, bodies);
-=======
 inline static void initMPIType() {
   MPI_Type_contiguous(DIM, MPI_DOUBLE, &MPI_VEC);
   MPI_Type_commit(&MPI_VEC);
@@ -188,10 +141,7 @@ static void runMPIReduced(int argc, char **argv,
   MPIAccumulatorReduced<DIM, EmptyAttributes> accumulator(
       MPI_VEC, locN, mpiSize, mpiRank, masses, force, attributes);
 
-    // integrators::Euler<DIM, EmptyAttributes> integrator(accumulator);
-    // integrators::Sympletic<DIM, EmptyAttributes> integrator(accumulator);
-    // integrators::Verlet<DIM, EmptyAttributes> integrator(accumulator);
-    integrators::RK4<DIM, EmptyAttributes> integrator(accumulator);
+  integrators::RK4<DIM, EmptyAttributes> integrator(accumulator);
 
   const double dt0   = dt;
   const double t_end = dt0 * static_cast<double>(steps);
@@ -250,6 +200,5 @@ int main(int argc, char **argv) {
   forces::gravity<DIM> gravity{};
   const forces::force<DIM, EmptyAttributes> &force = gravity;
   runMPIReduced(argc, argv, force, 20);
->>>>>>> Stashed changes
   return 0;
 }
