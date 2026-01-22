@@ -41,6 +41,9 @@ if(BUILD_SIMULATION)
     add_executable(generate src/generate-input.cpp)
     add_executable(compareOutputs src/compare-outputs.cpp)
     add_executable(simulation src/simulation.cpp)
+    add_executable(ats-serial src/adaptive_time_step/ats-serial.cpp)
+    add_executable(ats-nbody-mpi src/adaptive_time_step/ats-nbody-mpi.cpp)
+    add_executable(ats-nbody-mpi-reduced src/adaptive_time_step/ats-nbody-mpi-reduced.cpp)
 
     # Link OpenMP if available
     if(USE_OPENMP AND OpenMP_CXX_FOUND)

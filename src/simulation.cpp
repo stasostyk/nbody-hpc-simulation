@@ -90,11 +90,13 @@ int main(int argc, char **argv) {
     AccelerationAccumulator<DIM, EmptyAttributes> &accumulator = solver->getAccumulator();
 
     // NOTE: Choose integrator.
-    // TODO choose integrator via command line param
     // integrators::Euler<DIM, EmptyAttributes> integrator(accumulator);
     integrators::Sympletic<DIM, EmptyAttributes> integrator(accumulator);
     // integrators::Verlet<DIM, EmptyAttributes> integrator(accumulator);
     // integrators::RK4<DIM, EmptyAttributes> integrator(accumulator);
 
-    solver->runSimulation(integrator, solverType);
+    // NOTE: Choose if you want output per timestep for visualization or not.
+    // solver->runSimulation(integrator, solverType); // <--- use if no output steps (no vis!)
+    solver->runSimulation(integrator, solverType, 1); // <--- use if output steps (then run vis tool)
+    
 }

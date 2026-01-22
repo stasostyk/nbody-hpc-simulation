@@ -22,11 +22,10 @@
 #include "camera/Camera.hpp"
 
 constexpr int DIM = 3;
-const int NUM_FILES = 49;
+const int NUM_FILES = 9;
 constexpr int WINDOW_HEIGHT = 600;
 constexpr int WINDOW_WIDTH = 900;
-std::string FILE_PATH = "../build/test-MPI-reduced-";
-// std::string FILE_PATH = "../build/test1-MPI.";
+std::string FILE_PATH = "../build/MPIReduced.step-"; // <--- put in base of the file names from the solver
 
 
 void processKeyboardInputs(GLFWwindow* window, float deltaTime, Camera& camera) {

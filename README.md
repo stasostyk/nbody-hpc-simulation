@@ -14,6 +14,41 @@ Using the generated data, a visualization tool is provided using OpenGL, GLFW, a
   <img src="images/swarm.png" width="45%" />
 </p>
 
+## Running
+For build instructions before running, please check the next section "Building".
+
+Once you have the executables in your build folder ready, you can go through the workflow:
+1. Generate a test case.
+```bash
+$ ./generate [filename] [n] [steps] [dt] [seed]
+```
+
+For example, a filename test1 with 1000 particles, 100 steps, a time-step of 0.1, and default seed:
+```bash
+$ ./generate test1 1000 100 0.1
+```
+
+2. Run a solver
+```bash
+$ ./simulation [inputFilename] [solver] [extra]
+```
+
+Solver options are Serial SerialReduced MPI MPIReduced BarnesHut. If BarnesHut is used, provide also the theta parameter, as well as min and max coord of the universe. If using MPI solvers are used, run with: mpirun -n [procCount] ...
+
+For example, 
+```bash
+$ ./simulation test1 BarnesHut 0.5 -200 200
+```
+
+3. Run the visualization
+In your seperate build folder for the visualization (explained in build section), change the FILE_PATH to the base of the files generated in the solver, e.g. "MPIReduced-step.[step].out". Then change NUM_FILES to the number of files you wish to play (in case different from the steps parameter of the solver). Then run:
+```bash
+$ make
+$ ./nbody_visualization
+```
+
+
+
 ## Building
 
 The optional executable for visualisation has dependencies that are provided as git submodules, so make sure that you clone the repository with the `--recurse-submodules` option or use
