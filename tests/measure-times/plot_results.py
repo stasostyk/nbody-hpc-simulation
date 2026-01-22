@@ -41,32 +41,49 @@ def plot_results():
     bh_3D_n, bh_3D_time = extract_step10_data(bh3Dresults05, steps)
 
     # Create the plot
-    plt.figure(figsize=(10, 6))
+    plt.figure(figsize=(10, 7))
+    # plt.figure(figsize=(10, 6))
 
     # print(f'bh, n: {bh_n}, times: {bh_time}')
 
     # Plot all algorithms
-    # plt.loglog(serial_n, serial_time, 'o-', label='Serial', linewidth=2, markersize=8)
-    # plt.loglog(serial_reduced_n, serial_reduced_time, 's-', label='Serial Reduced', linewidth=2, markersize=8)
-    # plt.loglog(serial_omp_n, serial_omp_time, 'v-', label='Serial OMP (t=4)', linewidth=2, markersize=8)
-    # plt.loglog(serial_reduced_omp_n, serial_reduced_omp_time, '^-', label='Serial Reduced OMP (t=4)', linewidth=2, markersize=8)
-    # plt.loglog(mpi_n, mpi_time, 'p-', label='MPI (n=4)', linewidth=2, markersize=8)
-    # plt.loglog(mpi_reduced_n, mpi_reduced_time, '*-', label='MPI Reduced (n=4)', linewidth=2, markersize=8)
-    plt.loglog(bh_n, bh_time, 'd-', label='2D Barnes-Hut (θ=0.5)', linewidth=2, markersize=8)
-    # plt.semilogx(bh_n, bh_time, 'd-', label='2D Barnes-Hut (θ=0.5)', linewidth=2, markersize=8)
-    plt.loglog(bh_3D_n, bh_3D_time, 'p-', label='3D Barnes-Hut (θ=0.5)', linewidth=2, markersize=8)
-    # plt.semilogx(bh_3D_n, bh_3D_time, 'p-', label='3D Barnes-Hut (θ=0.5)', linewidth=2, markersize=8)
+    # plt.loglog(serial_reduced_n, serial_reduced_time, 's-', label='Reduced Serial', linewidth=4, markersize=12)
+    # plt.loglog(serial_reduced_omp_n, serial_reduced_omp_time, '^-', label='Reduced with OpenMP', linewidth=4, markersize=12)
+    # plt.loglog(mpi_n, mpi_time, 'p-', label='Basic MPI', linewidth=4, markersize=12)
+    # plt.loglog(mpi_reduced_n, mpi_reduced_time, '*-', label='Reduced MPI', linewidth=4, markersize=12)
+    # plt.loglog(bh_n, bh_time, 'd-', label='Barnes-Hut', linewidth=4, markersize=12)
 
-    plt.xlabel('Number of particles (n)', fontsize=12)
-    plt.ylabel('Execution time (ms)', fontsize=12)
-    plt.title(f'N-body Simulation Performance Comparison (steps={steps})', fontsize=14, fontweight='bold')
-    plt.legend(fontsize=11)
-    plt.grid(True, alpha=0.3, which='both')
+    # # # ONLY SERIAL
+    plt.loglog(serial_n, serial_time, 'o-', label='Basic Serial', linewidth=5, markersize=14)
+    plt.loglog(serial_reduced_n, serial_reduced_time, 's-', label='Reduced Serial', linewidth=5, markersize=14)
+    plt.loglog(serial_omp_n, serial_omp_time, 'v-', label='Basic with OpenMP', linewidth=5, markersize=14)
+    plt.loglog(serial_reduced_omp_n, serial_reduced_omp_time, '^-', label='Reduced with OpenMP', linewidth=5, markersize=14)
+
+
+    # BARNES HUT 2d vs 3d
+    # plt.loglog(bh_3D_n, bh_3D_time, 'p-', label='3D Barnes-Hut', linewidth=5, markersize=14)
+    # plt.loglog(bh_n, bh_time, 'd-', label='2D Barnes-Hut', linewidth=5, markersize=14)
+    
+
+
+    plt.tick_params(axis='both', which='major', labelsize=20)
+    plt.tick_params(axis='both', which='minor', labelsize=18)
+    plt.xlabel('Number of particles', fontsize=22)
+    plt.ylabel('Execution time (ms)', fontsize=22)
+    # plt.title(f'N-body Simulation Performance Comparison (steps={steps})', fontsize=14, fontweight='bold')
+    plt.legend(fontsize=21)
+    plt.grid(True, alpha=0.2, which='both')
+    ax = plt.gca()
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
 
     # Make the plot look nicer
     plt.tight_layout()
-    plt.show()
+    # plt.show()
+    plt.savefig('results-plot.pdf', bbox_inches='tight', dpi=500)
+    plt.close()
 
 
 if __name__ == '__main__':
+    plt.rcParams['font.family'] = 'Linux Libertine O'  
     plot_results()
