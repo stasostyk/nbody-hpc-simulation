@@ -35,7 +35,7 @@ inline static void freeMPIType() {
     MPI_Type_free(&MPI_VEC);
 }
 
-// utility: block counts/displacements for an array of N elements across comm_sz
+
 void make_counts_displs(int N, int comm_sz, std::vector<int> &counts, std::vector<int> &displs) {
     counts.resize(comm_sz);
     displs.resize(comm_sz);
@@ -108,9 +108,9 @@ int main(int argc, char** argv) {
     const double dt0 = dt;
     const double t_end = dt0 * static_cast<double>(steps);
 
-    const double dt_max = dt0 * 4.0;
-    const double dt_min = dt0 * 1e-6;
-    const double eps_v = 5e-7;
+    const double dt_max = dt0 * 4;
+    const double dt_min = dt0 * 1e-4;
+    const double eps_v = 5e-5;
     const double v_floor = 1e-6;
     const double a_floor = 1e-12;
     const double max_growth = 1.5;
@@ -141,24 +141,22 @@ int main(int argc, char** argv) {
     while (time < t_end && !time_reached(time, t_end)) {
     double dt_step = dt_curr;
     const double to_end = std::max(0.0, t_end - time);
-    const double to_out = std::max(0.0, next_out - time);
+    //const double to_out = std::max(0.0, next_out - time);
     dt_step = std::min(dt_step, to_end);
-    dt_step = std::min(dt_step, to_out);
+    //dt_step = std::min(dt_step, to_out);
 
     if (dt_step <= 0.0) {
     if (time_reached(time, next_out)) {
         if (frame % outputStride == 0) {
-        MPI_Allgatherv(bodies.position.data() + bodies.localOffset(),
-                        bodies.localSize(), MPI_VEC, bodies.position.data(),
+        MPI_Allgatherv(bodies.position.data() + bodies.localOffset(), bodies.localSize(), MPI_VEC, bodies.position.data(),
                         counts.data(), displs.data(), MPI_VEC, MPI_COMM_WORLD);
-        MPI_Allgatherv(bodies.velocity.data() + bodies.localOffset(),
-                        bodies.localSize(), MPI_VEC, bodies.velocity.data(),
+        MPI_Allgatherv(bodies.velocity.data() + bodies.localOffset(), bodies.localSize(), MPI_VEC, bodies.velocity.data(),
                         counts.data(), displs.data(), MPI_VEC, MPI_COMM_WORLD);
-        if (mpiRank == 0) utils::saveToFile("test1-MPI." + std::to_string(frame) + ".out",
-                            steps, dt0, bodies, false);
+        if (mpiRank == 0) utils::saveToFile("test1-MPI." + std::to_string(frame) + ".out", steps, dt_step, bodies, false);
         }
         ++frame;
-        next_out = std::min(t_end, dt0 * static_cast<double>(frame + 1));
+        next_out = std::min(t_end, dt0 * static_cast<double>((frame + 1) * out_every));
+
         continue;
     }
     break;
@@ -166,9 +164,19 @@ int main(int argc, char** argv) {
 
 
     integrator.step(bodies, dt_step);
-    time += dt_step;
+    MPI_Allgatherv(
+        bodies.position.data() + bodies.localOffset(),
+        locN, MPI_VEC,
+        bodies.position.data(),                       
+        counts.data(), displs.data(),
+        MPI_VEC, MPI_COMM_WORLD
+    );
 
     accumulator.compute(bodies);
+
+    time += dt_step;
+
+
 
     double dt_local_next =
         compute_local_dt<DIM>(bodies, accumulator, dt_step, dt_max, dt_min, eps_v, v_floor, a_floor, max_growth);
@@ -189,21 +197,19 @@ int main(int argc, char** argv) {
 
     if (time_reached(time, next_out)) {
         if (frame % outputStride == 0) {
-        MPI_Allgatherv(bodies.position.data() + bodies.localOffset(),
-                        bodies.localSize(), MPI_VEC, bodies.position.data(),
+        MPI_Allgatherv(bodies.position.data() + bodies.localOffset(), bodies.localSize(), MPI_VEC, bodies.position.data(),
                         counts.data(), displs.data(), MPI_VEC, MPI_COMM_WORLD);
-        MPI_Allgatherv(bodies.velocity.data() + bodies.localOffset(),
-                        bodies.localSize(), MPI_VEC, bodies.velocity.data(),
+        MPI_Allgatherv(bodies.velocity.data() + bodies.localOffset(), bodies.localSize(), MPI_VEC, bodies.velocity.data(),
                         counts.data(), displs.data(), MPI_VEC, MPI_COMM_WORLD);
         if (mpiRank == 0) {
             utils::saveToFile("test1-MPI." + std::to_string(frame) + ".out",
-                            steps, dt0, bodies, false);
+                            steps, dt_step, bodies, false);
         }
         }
 
         ++frame;
         next_out = std::min(t_end, dt0 * static_cast<double>((frame + 1) * out_every));
-    }
+    } 
     }
 
 
