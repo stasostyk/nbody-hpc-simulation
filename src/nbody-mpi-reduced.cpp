@@ -14,8 +14,12 @@
 #include "integrators/verlet.hpp"
 #include "mpi-accumulator-reduced.hpp"
 #include "utils.hpp"
+#include "adaptive_timestep.hpp"
 
-constexpr int DIM = 3; // dimensions of the problem (2D or 3D)
+
+#include "adaptive_dt.hpp"
+
+constexpr int DIM = 3;
 
 static MPI_Datatype MPI_VEC;
 
@@ -30,8 +34,7 @@ inline void allMPIInit(int *argc, char ***argv, int &mpiSize, int &mpiRank) {
   MPI_Init(argc, argv);
   MPI_Comm_size(MPI_COMM_WORLD, &mpiSize);
   MPI_Comm_rank(MPI_COMM_WORLD, &mpiRank);
-
-  initMPIType(); // to be able to use MPI_VEC for Vecs
+  initMPIType();
 }
 
 inline void allMPIFinalize() {
@@ -45,7 +48,6 @@ void gatherAndSaveAllPositions(int mpiSize, int mpiRank, int n, int steps,
                                const std::vector<Vec<DIM>> &localVelocities,
                                const std::vector<double> &masses,
                                const std::string &filetag) {
-  // gather all final positions and velocities to root process
   bodies<DIM, EmptyAttributes> final;
 
   if (mpiRank == 0) {
@@ -84,10 +86,6 @@ void runMPIReduced(int argc, char **argv,
   int mpiSize, mpiRank;
   allMPIInit(&argc, &argv, mpiSize, mpiRank);
 
-  // if (mpiRank == 0) {
-  //  utils::generateRandomToFile<DIM>("test1.in.out", 3, 1000, 0.01, 42);
-  // }
-
   bodies<DIM, EmptyAttributes> bodies;
 
   int n;
@@ -98,7 +96,6 @@ void runMPIReduced(int argc, char **argv,
   std::vector<EmptyAttributes> attributes;
 
   if (mpiRank == 0) {
-    // Root process reads input, and will broadcast the data.
     utils::readFromFile("test1.in.out", steps, dt, bodies);
     masses.resize(bodies.localSize());
     std::copy_n(bodies.mass.begin(), bodies.localSize(), masses.begin());
@@ -111,15 +108,11 @@ void runMPIReduced(int argc, char **argv,
 
   attributes.resize(n);
 
-  // assert(n % mpiSize == 0); /// TODO later remove
   if (n % mpiSize != 0) {
-    std::cout << "n should be divisible by mpiSize" << std::endl;
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
 
   int locN = n / mpiSize;
-
-  std::cout << " rank=" << mpiRank << " locN: " << locN << std::endl;
 
   if (mpiRank != 0) {
     masses.resize(n);
@@ -128,10 +121,7 @@ void runMPIReduced(int argc, char **argv,
 
   MPI_Bcast(masses.data(), n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-  // send local positions and local velocities
   if (mpiRank == 0) {
-    /* scatter cyclically: particle i goes to rank (i % comm_sz), local index =
-     * i / comm_sz */
     for (int i = 0; i < n; i++) {
       int owner = i % mpiSize;
       int lidx = i / mpiSize;
@@ -139,15 +129,12 @@ void runMPIReduced(int argc, char **argv,
         bodies.position[lidx] = bodies.position[i];
         bodies.velocity[lidx] = bodies.velocity[i];
       } else {
-        /* send mass and pos/vel to owner */
         MPI_Send(&bodies.position[i], 1, MPI_VEC, owner, 1, MPI_COMM_WORLD);
         MPI_Send(&bodies.velocity[i], 1, MPI_VEC, owner, 2, MPI_COMM_WORLD);
       }
     }
     bodies.resize(locN, locN, 0);
   } else {
-    // get local positions and local velocities from root process
-    /* receive cyclicly-scattered items from root */
     for (int i = mpiRank; i < n; i += mpiSize) {
       int lidx = i / mpiSize;
       MPI_Recv(&bodies.position[lidx], 1, MPI_VEC, 0, 1, MPI_COMM_WORLD,
@@ -157,23 +144,128 @@ void runMPIReduced(int argc, char **argv,
     }
   }
 
+<<<<<<< Updated upstream
   MPIAccumulatorReduced<DIM, EmptyAttributes> accumulator(
       MPI_VEC, n / mpiSize, mpiSize, mpiRank, masses, force, attributes);
   // integrators::Euler<DIM, EmptyAttributes> integrator(accumulator);
   // integrators::Sympletic<DIM, EmptyAttributes> integrator(accumulator);
   // integrators::Verlet<DIM, EmptyAttributes> integrator(accumulator);
   integrators::RK4<DIM, EmptyAttributes> integrator(accumulator);
+  const double dt_max = dt;
+  const double T_end  = steps * dt_max;
 
-  for (int step = 0; step < steps; step++) {
-    integrator.step(bodies, dt);
+  double time = 0.0;
+  double next_output_time = dt_max;
+  int frame = 0;              // counts output times hit: 0..steps-1
 
-    if (step % outputStride == 0)
-      gatherAndSaveAllPositions(mpiSize, mpiRank, n, steps, dt, bodies.position,
-                                bodies.velocity, masses, std::to_string(step/outputStride));
+  std::vector<double> particle_dt(bodies.localSize(), dt_max);
+
+  while (time + 1e-15 < T_end) {
+    accumulator.compute(bodies);
+
+    double dt_local = timestep::update_timesteps<DIM, EmptyAttributes>(
+        bodies, accumulator, dt_max, particle_dt);
+
+    double dt_global = dt_local;
+    MPI_Allreduce(&dt_local, &dt_global, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+
+    double dt_step = dt_global;
+
+    dt_step = std::min(dt_step, T_end - time);
+
+    bool do_output = false;
+    if (time + dt_step >= next_output_time - 1e-15) {
+      dt_step = std::max(0.0, next_output_time - time);
+      do_output = true;
+    }
+
+    if (dt_step > 0.0) {
+      integrator.step(bodies, dt_step);
+      time += dt_step;
+    } else {
+      time = next_output_time;
+    }
+
+    if (do_output) {
+      // Save only every outputStride frames
+      if (frame % outputStride == 0) {
+        const double dt_save = dt_max * outputStride;
+
+        gatherAndSaveAllPositions(mpiSize, mpiRank, n, steps, dt_save,
+                                  bodies.position, bodies.velocity, masses,
+                                  std::to_string(frame / outputStride));
+      }
+
+      next_output_time += dt_max;
+      frame++;
+    }
   }
 
-  gatherAndSaveAllPositions(mpiSize, mpiRank, n, steps, dt, bodies.position,
+=======
+  MPIAccumulatorReduced<DIM, EmptyAttributes> accumulator(MPI_VEC, locN, mpiSize,
+                                                          mpiRank, masses, force,
+                                                          attributes);
+
+    // integrators::Euler<DIM, EmptyAttributes> integrator(accumulator);
+    // integrators::Sympletic<DIM, EmptyAttributes> integrator(accumulator);
+    // integrators::Verlet<DIM, EmptyAttributes> integrator(accumulator);
+    integrators::RK4<DIM, EmptyAttributes> integrator(accumulator);
+
+  const double dt0 = dt;
+  const double t_end = dt0 * static_cast<double>(steps);
+
+  const double dt_max = dt0 * 4.0;
+  const double dt_min = dt0 * 1e-6;
+  const double eps_v = 5e-7;
+  const double v_floor = 1e-6;
+  const double a_floor = 1e-12;
+  const double max_growth = 1.5;
+
+  double time = 0.0;
+  const int out_every = 10;
+  double next_out = dt0 * out_every;
+  int frame = 0;
+
+  accumulator.compute(bodies);
+
+  double dt_prev = dt0;
+
+  double dt_local = compute_local_dt<DIM>(bodies, accumulator, dt_prev, dt_max,
+                                         dt_min, eps_v, v_floor, a_floor,
+                                         max_growth);
+  double dt_curr = dt_local;
+  MPI_Allreduce(&dt_local, &dt_curr, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+
+  while (time < t_end && !time_reached(time, t_end)) {
+    double dt_step = dt_curr;
+    dt_step = std::min(dt_step, t_end - time);
+    dt_step = std::min(dt_step, next_out - time);
+
+    integrator.step(bodies, dt_step);
+    time += dt_step;
+
+    accumulator.compute(bodies);
+
+    dt_local = compute_local_dt<DIM>(bodies, accumulator, dt_step, dt_max,
+                                     dt_min, eps_v, v_floor, a_floor,
+                                     max_growth);
+    MPI_Allreduce(&dt_local, &dt_curr, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+
+    if (time_reached(time, next_out)) {
+      if (frame % outputStride == 0) {
+        gatherAndSaveAllPositions(mpiSize, mpiRank, n, steps, dt0, bodies.position,
+                                  bodies.velocity, masses,
+                                  std::to_string(frame / outputStride));
+      }
+      ++frame;
+      next_out =
+          std::min(t_end, dt0 * static_cast<double>((frame + 1) * out_every));
+    }
+  }
+
+  gatherAndSaveAllPositions(mpiSize, mpiRank, n, steps, dt0, bodies.position,
                             bodies.velocity, masses, "final");
+>>>>>>> Stashed changes
 
   allMPIFinalize();
 }
@@ -192,23 +284,22 @@ void run3Charges(int argc, char **argv, int outputStride) {
   std::vector<forces::charge> attributes;
 
   if (mpiRank == 0) {
-    // Root process reads input, and will broadcast the data.
     steps = 1000;
     dt = 0.01;
 
     bodies.resize(3, 3, 0);
-    bodies.local(0).pos()[0] = 1.0; bodies.local(0).pos()[1] = 1.0; bodies.local(0).pos()[2] = 1.0;
-    bodies.local(0).vel()[0] = 0.0; bodies.local(0).vel()[1] = 0.0; bodies.local(0).vel()[2] = 0.0;
+    bodies.local(0).pos()[0] = 1.0;  bodies.local(0).pos()[1] = 1.0;  bodies.local(0).pos()[2] = 1.0;
+    bodies.local(0).vel()[0] = 0.0;  bodies.local(0).vel()[1] = 0.0;  bodies.local(0).vel()[2] = 0.0;
     bodies.local(0).mass() = 1.0;
     bodies.local(0).attributes().charge = 1e-4;
 
     bodies.local(1).pos()[0] = -1.0; bodies.local(1).pos()[1] = -1.0; bodies.local(1).pos()[2] = 1.0;
-    bodies.local(1).vel()[0] = 0.0; bodies.local(1).vel()[1] = 0.0; bodies.local(1).vel()[2] = 0.0;
+    bodies.local(1).vel()[0] = 0.0;  bodies.local(1).vel()[1] = 0.0;  bodies.local(1).vel()[2] = 0.0;
     bodies.local(1).mass() = 1.0;
     bodies.local(1).attributes().charge = 1e-4;
 
-    bodies.local(2).pos()[0] = -1.0; bodies.local(2).pos()[1] = 1.0; bodies.local(2).pos()[2] = 1.0;
-    bodies.local(2).vel()[0] = 0.0; bodies.local(2).vel()[1] = 0.0; bodies.local(2).vel()[2] = 0.0;
+    bodies.local(2).pos()[0] = -1.0; bodies.local(2).pos()[1] = 1.0;  bodies.local(2).pos()[2] = 1.0;
+    bodies.local(2).vel()[0] = 0.0;  bodies.local(2).vel()[1] = 0.0;  bodies.local(2).vel()[2] = 0.0;
     bodies.local(2).mass() = 1.0;
     bodies.local(2).attributes().charge = 1e-4;
 
@@ -224,15 +315,11 @@ void run3Charges(int argc, char **argv, int outputStride) {
   MPI_Bcast(&steps, 1, MPI_INT, 0, MPI_COMM_WORLD);
   MPI_Bcast(&dt, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-  // assert(n % mpiSize == 0); /// TODO later remove
   if (n % mpiSize != 0) {
-    std::cout << "n should be divisible by mpiSize" << std::endl;
     MPI_Abort(MPI_COMM_WORLD, 1);
   }
 
   int locN = n / mpiSize;
-
-  std::cout << " rank=" << mpiRank << " locN: " << locN << std::endl;
 
   if (mpiRank != 0) {
     masses.resize(n);
@@ -243,10 +330,7 @@ void run3Charges(int argc, char **argv, int outputStride) {
   MPI_Bcast(masses.data(), n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
   MPI_Bcast(attributes.data(), n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-  // send local positions and local velocities
   if (mpiRank == 0) {
-    /* scatter cyclically: particle i goes to rank (i % comm_sz), local index =
-     * i / comm_sz */
     for (int i = 0; i < n; i++) {
       int owner = i % mpiSize;
       int lidx = i / mpiSize;
@@ -254,15 +338,12 @@ void run3Charges(int argc, char **argv, int outputStride) {
         bodies.position[lidx] = bodies.position[i];
         bodies.velocity[lidx] = bodies.velocity[i];
       } else {
-        /* send mass and pos/vel to owner */
         MPI_Send(&bodies.position[i], 1, MPI_VEC, owner, 1, MPI_COMM_WORLD);
         MPI_Send(&bodies.velocity[i], 1, MPI_VEC, owner, 2, MPI_COMM_WORLD);
       }
     }
     bodies.resize(locN, locN, 0);
   } else {
-    // get local positions and local velocities from root process
-    /* receive cyclicly-scattered items from root */
     for (int i = mpiRank; i < n; i += mpiSize) {
       int lidx = i / mpiSize;
       MPI_Recv(&bodies.position[lidx], 1, MPI_VEC, 0, 1, MPI_COMM_WORLD,
@@ -273,19 +354,19 @@ void run3Charges(int argc, char **argv, int outputStride) {
   }
 
   forces::coulomb<DIM> coulomb{};
-  MPIAccumulatorReduced<DIM, forces::charge> accumulator(
-      MPI_VEC, n / mpiSize, mpiSize, mpiRank, masses, coulomb, attributes);
+  MPIAccumulatorReduced<DIM, forces::charge> accumulator(MPI_VEC, n / mpiSize,
+                                                         mpiSize, mpiRank, masses,
+                                                         coulomb, attributes);
   integrators::Euler<DIM, forces::charge> integrator(accumulator);
-  // integrators::Sympletic<DIM, forces::charge> integrator(accumulator);
-  // integrators::Verlet<DIM, forces::charge> integrator(accumulator);
-  // integrators::RK4<DIM, forces::charge> integrator(accumulator);
 
   for (int step = 0; step < steps; step++) {
     integrator.step(bodies, dt);
 
-    if (step % outputStride == 0)
+    if (step % outputStride == 0) {
       gatherAndSaveAllPositions(mpiSize, mpiRank, n, steps, dt, bodies.position,
-                                bodies.velocity, masses, std::to_string(step/outputStride));
+                                bodies.velocity, masses,
+                                std::to_string(step / outputStride));
+    }
   }
 
   gatherAndSaveAllPositions(mpiSize, mpiRank, n, steps, dt, bodies.position,
@@ -295,12 +376,16 @@ void run3Charges(int argc, char **argv, int outputStride) {
 }
 
 int main(int argc, char **argv) {
+<<<<<<< Updated upstream
 
-  run3Charges(argc, argv, 20);
-  return 0;
+  //run3Charges(argc, argv, 20);
+  //return 0;
 
+=======
+>>>>>>> Stashed changes
   forces::gravity<DIM> gravity{};
   const forces::force<DIM, EmptyAttributes> &force = gravity;
 
-  runMPIReduced(argc, argv, force, 20);
+  runMPIReduced(argc, argv, force, 1);
+  return 0;
 }
