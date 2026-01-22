@@ -1,7 +1,8 @@
 #pragma once
 
-#include "acceleration-accumulator.hpp"
-#include "forces/func.hpp"
+#include "../acceleration-accumulator.hpp"
+#include "../forces/func.hpp"
+#include "../omp_utils.hpp"
 #include <mpi.h>
 
 template <int DIM, typename Attributes> 
@@ -22,7 +23,7 @@ public:
     _accelerations.resize(localSize);
   }
 
-  void compute(bodies<DIM, Attributes> &bodies) override {
+  void compute(Bodies<DIM, Attributes> &bodies) override {
     // All tasks gather all positions (will be required for the next step)
     MPI_Allgatherv(bodies.position.data() + bodies.localOffset(),
                    bodies.localSize(), _MPI_VEC, bodies.position.data(),
@@ -35,13 +36,13 @@ public:
                    _counts.data(), _offsets.data(), _MPI_VEC, MPI_COMM_WORLD);
 
     // make forces equal to zero
+    OMP_STATIC_LOOP
     for (size_t i = 0; i < bodies.localSize(); i++) {
-      for (int j = 0; j < DIM; j++) {
-        _accelerations[i][j] = 0.;
-      }
+      _accelerations[i] = 0.;
     }
 
     // compute all forces
+    OMP_STATIC_LOOP
     for (size_t i = 0; i < bodies.localSize(); i++) {
       size_t q = bodies.localOffset() + i;
       for (size_t k = 0; k < bodies.globalSize(); k++) {
@@ -51,10 +52,9 @@ public:
       }
     }
 
+    OMP_STATIC_LOOP
     for (size_t i = 0; i < bodies.localSize(); i++) {
-      for (int j = 0; j < DIM; j++) {
-        _accelerations[i][j] /= bodies.local(i).mass();
-      }
+      _accelerations[i] /= bodies.local(i).mass();
     }
   }
 

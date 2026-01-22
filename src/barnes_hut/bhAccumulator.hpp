@@ -3,10 +3,7 @@
 #include "BHTree.hpp"
 #include "../acceleration-accumulator.hpp"
 #include "../forces/func.hpp"
-
-#if USE_OPENMP
-    #include <omp.h>
-#endif
+#include "../omp_utils.hpp"
 
 template <int DIM, typename Attributes> 
 class BarnesHutAccumulator : public AccelerationAccumulator<DIM, Attributes> {
@@ -24,8 +21,10 @@ public:
     _accelerations.resize(n);
   }
 
-  void compute(bodies<DIM, Attributes> &bodiesPassed) override {
+  void compute(Bodies<DIM, Attributes> &bodiesPassed) override {
     std::vector<Body<DIM>> bodies(n);
+
+    OMP_STATIC_LOOP
     for (int i = 0; i < n; i++) {
         bodies[i].bodyId = i;
         bodies[i].acceleration = 0.;
@@ -39,17 +38,14 @@ public:
     BHTree<DIM, Attributes> bhTree(universeBounds, bodies);
 
     // Compute all forces using BH Tree.
-    #if USE_OPENMP
-        #pragma omp parallel for schedule(dynamic, 16)
-    #endif
+    OMP_DYNAMIC_LOOP
     for (int i = 0; i < n; i++) {
         _accelerations[i] = bhTree.calculateForce(bodies[i], theta, _force);
     }
 
+    OMP_STATIC_LOOP
     for (size_t i = 0; i < (size_t)n; i++) {
-      for (int j = 0; j < DIM; j++) {
-        _accelerations[i][j] /= bodiesPassed.global(i).mass();
-      }
+      _accelerations[i] /= bodiesPassed.global(i).mass();
     }
   }
 

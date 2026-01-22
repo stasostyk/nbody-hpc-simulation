@@ -2,6 +2,7 @@
 
 #include "../acceleration-accumulator.hpp"
 #include "integrator.hpp"
+#include "../omp_utils.hpp"
 #include <iostream>
 
 namespace integrators {
@@ -19,20 +20,19 @@ public:
   Euler(AccelerationAccumulator<DIM, Attributes>& accelerationAccumulator)
       : accelerationAccumulator(accelerationAccumulator) {}
 
-  void step(bodies<DIM, Attributes> &bodies, double dt) override {
+  void step(Bodies<DIM, Attributes> &bodies, double dt) override {
 
     accelerationAccumulator.compute(bodies);
     size_t n = bodies.localSize();
+
+    OMP_STATIC_LOOP
     for (size_t i = 0; i < n; ++i) {
-      for (int d = 0; d < DIM; ++d) {
-        bodies.local(i).pos()[d] += bodies.local(i).vel()[d] * dt;
-      }
+      bodies.local(i).pos() += bodies.local(i).vel() * dt;
     }
 
+    OMP_STATIC_LOOP
     for (size_t i = 0; i < n; ++i) {
-      for (int d = 0; d < DIM; ++d) {
-        bodies.local(i).vel()[d] += accelerationAccumulator.accel(i)[d] * dt;
-      }
+      bodies.local(i).vel() += accelerationAccumulator.accel(i) * dt;
     }
   }
 };

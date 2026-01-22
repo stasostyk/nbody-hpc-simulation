@@ -6,6 +6,6 @@
 template<int DIM, typename Attributes>
 class AccelerationAccumulator {
 public:
-    virtual void compute(bodies<DIM, Attributes> &bodies) = 0;
+    virtual void compute(Bodies<DIM, Attributes> &bodies) = 0;
     virtual const Vec<DIM>& accel(int bodyIndex) const = 0;
 };

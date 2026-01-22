@@ -12,7 +12,7 @@ struct EmptyAttributes {};
 // Store bodies as structure of arrays
 // View bodies as array of structure
 template <int DIM, typename Attributes = EmptyAttributes> 
-struct bodies {
+struct Bodies {
 private:
   size_t _globalSize = 0;
   size_t _localSize = 0;
@@ -67,10 +67,10 @@ public:
 template <int DIM, typename Attributes> 
 struct bodyView : public body<DIM, Attributes> {
 private:
-  bodies<DIM, Attributes> &_bodies;
+  Bodies<DIM, Attributes> &_bodies;
 
 public:
-  bodyView(bodies<DIM, Attributes> &bodies, int index) : _bodies(bodies), index(index) {}
+  bodyView(Bodies<DIM, Attributes> &bodies, int index) : _bodies(bodies), index(index) {}
   const int index;
   Vec<DIM> &pos() override { return _bodies.position[index]; }
   const Vec<DIM> &pos() const override { return _bodies.position[index]; }

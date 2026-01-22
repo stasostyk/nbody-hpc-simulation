@@ -12,7 +12,7 @@ namespace utils {
 
 template <int DIM>
 void saveToStream(std::ostream &out, int steps, double dt,
-                  const bodies<DIM, EmptyAttributes>& bodies, bool saveVelocities = true) {
+                  const Bodies<DIM, EmptyAttributes>& bodies, bool saveVelocities = true) {
   out << DIM << "\n";
   out << bodies.globalSize() << " " << steps << " " << dt << "\n";
   for (size_t i = 0; i < bodies.globalSize(); i++) {
@@ -29,7 +29,7 @@ void saveToStream(std::ostream &out, int steps, double dt,
 
 template <int DIM>
 void readFromStream(std::istream &in, int &steps, double &dt,
-                    bodies<DIM, EmptyAttributes>& bodies, bool readVelocities = true) {
+                    Bodies<DIM, EmptyAttributes>& bodies, bool readVelocities = true) {
   int dimInFile;
   in >> dimInFile;
   assert(dimInFile == DIM);
@@ -53,7 +53,7 @@ void readFromStream(std::istream &in, int &steps, double &dt,
 
 template <int DIM>
 void saveToFile(const std::string &fileName, int steps, double dt,
-                const bodies<DIM, EmptyAttributes>& bodies, bool saveVelocities = true) {
+                const Bodies<DIM, EmptyAttributes>& bodies, bool saveVelocities = true) {
   std::ofstream fout(fileName);
 
   saveToStream(fout, steps, dt, bodies, saveVelocities);
@@ -66,7 +66,7 @@ void saveToFile(const std::string &fileName, int steps, double dt,
 
 template <int DIM>
 void readFromFile(const std::string &fileName, int &steps, double &dt,
-                  bodies<DIM, EmptyAttributes>& bodies, bool readVelocities = true) {
+                  Bodies<DIM, EmptyAttributes>& bodies, bool readVelocities = true) {
   std::ifstream fin(fileName);
   if (!fin.is_open()) {
     throw std::runtime_error("File not found: " + fileName + ". Ensure that it exists then try again.");
@@ -88,7 +88,7 @@ void generateRandomToFile(const std::string &filename, int n = 100,
   constexpr int MIN_MASS = 1;
   constexpr int MAX_MASS = 100;
 
-  bodies<DIM, EmptyAttributes> bodies;
+  Bodies<DIM, EmptyAttributes> bodies;
   bodies.resize(n, n, 0);
 
   std::mt19937_64 rng(seed);
@@ -115,7 +115,7 @@ void compareOutputs(const std::string& prefixA = "test1", const std::string& pre
     for (int step = 0; step < steps; step++) {
         int stepsA, stepsB;
         double dtA, dtB;
-        bodies<DIM, EmptyAttributes> bodiesA, bodiesB;
+        Bodies<DIM, EmptyAttributes> bodiesA, bodiesB;
 
         std::string filenameSuffix = + "." + std::to_string(step) + ".out";
         std::string filenameA = prefixA + filenameSuffix;
@@ -163,7 +163,7 @@ void compareOutputsSingleFile(std::string filename1, std::string filename2) {
 
   int stepsA, stepsB;
   double dtA, dtB;
-  bodies<DIM, EmptyAttributes> bodiesA, bodiesB;
+  Bodies<DIM, EmptyAttributes> bodiesA, bodiesB;
 
   utils::readFromFile<DIM>(filename1, stepsA, dtA, bodiesA);
   utils::readFromFile<DIM>(filename2, stepsB, dtB, bodiesB);

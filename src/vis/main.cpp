@@ -120,7 +120,7 @@ int main() {
     double dt;
     int steps;
     std::vector<glm::vec3> combinedTraces; // all combined to improve performance
-    bodies<DIM> bodies;
+    Bodies<DIM> bodies;
     
     utils::readFromFile(FILE_PATH + "0.out", steps, dt, bodies, false);
     int n = bodies.position.size();

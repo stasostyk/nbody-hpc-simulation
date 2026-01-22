@@ -1,7 +1,8 @@
 #pragma once
 
-#include "acceleration-accumulator.hpp"
-#include "forces/func.hpp"
+#include "../acceleration-accumulator.hpp"
+#include "../forces/func.hpp"
+#include "../omp_utils.hpp"
 
 template <int DIM, typename Attributes> 
 class SerialAccumulator : public AccelerationAccumulator<DIM, Attributes> {
@@ -15,16 +16,15 @@ public:
     _accelerations.resize(size);
   }
 
-  void compute(bodies<DIM, Attributes> &bodies) override {
+  void compute(Bodies<DIM, Attributes> &bodies) override {
 
     size_t n = bodies.localSize();
 
-    // azzera forze
+    OMP_STATIC_LOOP
     for (size_t i = 0; i < n; ++i)
-        for (int d = 0; d < DIM; ++d)
-            _accelerations[i][d] = 0.0;
+      _accelerations[i] = 0.0;
 
-    // tutte le coppie q != k
+    OMP_STATIC_LOOP
     for (size_t q = 0; q < n; ++q) {
         for (size_t k = 0; k < n; ++k) {
             if (q == k) continue;
@@ -32,10 +32,9 @@ public:
         }
     }
 
+    OMP_STATIC_LOOP
     for (size_t i = 0; i < n; i++) {
-      for (int j = 0; j < DIM; j++) {
-        _accelerations[i][j] /= bodies.local(i).mass();
-      }
+      _accelerations[i] /= bodies.local(i).mass();
     }
   }
 
